@@ -183,7 +183,25 @@ const VB_H = 4 * V_SPACING + 2 * SIZE + 2 * PAD;
 const VB_MIN_X = -2.5 * H_SPACING - PAD;
 const VB_MIN_Y = -SIZE - PAD;
 
-export default function HexBoard({ placements = [], roads = [], cities = [], onIntersectionClick, onEdgeClick }) {
+function RobberMarker({ cx, cy }) {
+  return (
+    <g pointerEvents="none">
+      <circle cx={cx} cy={cy - 30} r={10} fill="#2C3E50" stroke="white" strokeWidth={1.5} />
+      <text
+        x={cx} y={cy - 30}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={11}
+        fontWeight="bold"
+        fill="white"
+      >
+        R
+      </text>
+    </g>
+  );
+}
+
+export default function HexBoard({ placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
   const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
@@ -206,7 +224,11 @@ export default function HexBoard({ placements = [], roads = [], cities = [], onI
         viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
       >
         {hexes.map(({ x, y, resource, number }, i) => (
-          <g key={i}>
+          <g
+            key={i}
+            onClick={onHexClick ? () => onHexClick(i) : undefined}
+            style={onHexClick ? { cursor: 'pointer' } : undefined}
+          >
             <polygon
               points={hexPoints(x, y)}
               fill={RESOURCE_COLORS[resource]}
@@ -214,6 +236,7 @@ export default function HexBoard({ placements = [], roads = [], cities = [], onI
               strokeWidth={2}
             />
             {number !== null && <Token cx={x} cy={y} number={number} />}
+            {robberHex === i && <RobberMarker cx={x} cy={y} />}
           </g>
         ))}
         {PORTS.map((port, i) => (

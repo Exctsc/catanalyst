@@ -37,6 +37,9 @@ function hexVertexIndices(hexIdx) {
   });
 }
 
+// HEX_TO_VERTICES[h] — the 6 vertex indices at the corners of hex h
+export const HEX_TO_VERTICES = HEX_CENTERS.map((_, hexIdx) => hexVertexIndices(hexIdx));
+
 // VERTEX_TO_HEXES[v] — hex indices whose corner is vertex v (1–3 entries)
 export const VERTEX_TO_HEXES = Array.from({ length: VERTICES.length }, () => []);
 HEX_CENTERS.forEach((_, hexIdx) => {

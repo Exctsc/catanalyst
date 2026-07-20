@@ -1,4 +1,4 @@
-import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES } from './gameRules.js';
+import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES } from './gameRules.js';
 
 // Mirrors tile/number layout in HexBoard.jsx — kept in sync manually
 const HEX_TILES = [
@@ -13,6 +13,7 @@ const TILE_TO_RESOURCE = {
   mountains: 'ore', fields: 'wheat', forest: 'wood',
   hills: 'brick', pasture: 'sheep', desert: null,
 };
+const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
 
 export function rollDice() {
   const die1 = Math.ceil(Math.random() * 6);
@@ -36,6 +37,7 @@ export function collectResources(gameState, diceTotal) {
     ];
     buildings.forEach(({ intersectionIndex, amount }) => {
       VERTEX_TO_HEXES[intersectionIndex].forEach(hexIdx => {
+        if (hexIdx === gameState.robberHex) return;
         if (HEX_NUMBERS[hexIdx] !== diceTotal) return;
         const resource = TILE_TO_RESOURCE[HEX_TILES[hexIdx]];
         if (!resource) return;
@@ -57,6 +59,16 @@ function setupPlayerFor(turnIndex) {
   return turnIndex < 4 ? turnIndex : 7 - turnIndex;
 }
 
+// Recompute a player's victory points (1/settlement, 2/city) and declare a
+// winner at 10. Applied after any action that changes buildings.
+function updateVictory(gameState, playerIndex) {
+  const players = gameState.players.map((p, idx) =>
+    idx === playerIndex ? { ...p, victoryPoints: p.settlements.length + 2 * p.cities.length } : p
+  );
+  const winner = players[playerIndex].victoryPoints >= 10 ? playerIndex : gameState.winner;
+  return { ...gameState, players, winner };
+}
+
 function isOccupied(gameState, intersectionIndex) {
   return gameState.players.some(p =>
     p.settlements.some(s => s.intersectionIndex === intersectionIndex) ||
@@ -65,7 +77,9 @@ function isOccupied(gameState, intersectionIndex) {
 }
 
 export function placeSettlement(gameState, playerIndex, intersectionIndex) {
+  if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.robber) return 'Resolve the robber first';
   if (isOccupied(gameState, intersectionIndex)) return 'Intersection already occupied';
   if (VERTEX_ADJACENCY[intersectionIndex].some(adj => isOccupied(gameState, adj)))
     return 'Too close to another settlement';
@@ -115,11 +129,13 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
     lastSettlementIndex: intersectionIndex,
   } : gameState.setup;
 
-  return { ...gameState, players, bank, setup };
+  return updateVictory({ ...gameState, players, bank, setup }, playerIndex);
 }
 
 export function placeRoad(gameState, playerIndex, edgeIndex) {
+  if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.robber) return 'Resolve the robber first';
   if (edgeIndex < 0 || edgeIndex >= EDGES.length) return 'Invalid edge';
 
   const edgeTaken = gameState.players.some(p => p.roads.some(r => r.edgeIndex === edgeIndex));
@@ -189,7 +205,9 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
 }
 
 export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
+  if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.robber) return 'Resolve the robber first';
   if (gameState.phase === 'setup') return 'Cannot build cities during setup';
 
   const player = gameState.players[playerIndex];
@@ -211,5 +229,132 @@ export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
 
   const bank = { ...gameState.bank, wheat: gameState.bank.wheat + 2, ore: gameState.bank.ore + 3 };
 
+  return updateVictory({ ...gameState, players, bank }, playerIndex);
+}
+
+export function bankTrade(gameState, playerIndex, give, receive) {
+  if (gameState.winner !== null) return 'Game is over';
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.robber) return 'Resolve the robber first';
+  if (gameState.phase === 'setup') return 'Cannot trade during setup';
+  if (!RESOURCE_TYPES.includes(give) || !RESOURCE_TYPES.includes(receive)) return 'Unknown resource';
+  if (give === receive) return 'Pick two different resources';
+  if (gameState.players[playerIndex].resources[give] < 4) return `You need 4 ${give} to trade`;
+  if (gameState.bank[receive] < 1) return `Bank is out of ${receive}`;
+
+  const players = gameState.players.map((p, idx) => {
+    if (idx !== playerIndex) return p;
+    return {
+      ...p,
+      resources: { ...p.resources, [give]: p.resources[give] - 4, [receive]: p.resources[receive] + 1 },
+    };
+  });
+
+  const bank = {
+    ...gameState.bank,
+    [give]: gameState.bank[give] + 4,
+    [receive]: gameState.bank[receive] - 1,
+  };
+
   return { ...gameState, players, bank };
+}
+
+function totalCards(player) {
+  return RESOURCE_TYPES.reduce((sum, r) => sum + player.resources[r], 0);
+}
+
+// Called after a 7 is rolled: players over 7 cards must discard half (rounded
+// down) before the robber moves; otherwise go straight to moving it.
+export function startRobber(gameState) {
+  const overLimit = gameState.players
+    .map((p, i) => ({ i, total: totalCards(p) }))
+    .filter(x => x.total > 7);
+
+  if (overLimit.length === 0) return { ...gameState, robber: { stage: 'move' } };
+
+  return {
+    ...gameState,
+    robber: {
+      stage: 'discard',
+      pending: overLimit.map(x => x.i),
+      required: Object.fromEntries(overLimit.map(x => [x.i, Math.floor(x.total / 2)])),
+    },
+  };
+}
+
+// discards is { resource: count }; total must equal the player's required count
+export function discardCards(gameState, playerIndex, discards) {
+  const robber = gameState.robber;
+  if (!robber || robber.stage !== 'discard') return 'No discard is pending';
+  if (!robber.pending.includes(playerIndex)) return 'You have nothing to discard';
+
+  const player = gameState.players[playerIndex];
+  const entries = Object.entries(discards).filter(([, n]) => n > 0);
+  if (entries.some(([r]) => !RESOURCE_TYPES.includes(r))) return 'Unknown resource';
+  if (entries.some(([r, n]) => n > player.resources[r])) return 'You do not have those cards';
+
+  const discardTotal = entries.reduce((sum, [, n]) => sum + n, 0);
+  if (discardTotal !== robber.required[playerIndex])
+    return `You must discard exactly ${robber.required[playerIndex]} cards`;
+
+  const bank = { ...gameState.bank };
+  const players = gameState.players.map((p, idx) => {
+    if (idx !== playerIndex) return p;
+    const resources = { ...p.resources };
+    entries.forEach(([r, n]) => { resources[r] -= n; bank[r] += n; });
+    return { ...p, resources };
+  });
+
+  const pending = robber.pending.filter(i => i !== playerIndex);
+  return {
+    ...gameState, players, bank,
+    robber: pending.length ? { ...robber, pending } : { stage: 'move' },
+  };
+}
+
+// Opponents with a settlement or city on the hex and at least one card
+function stealCandidates(gameState, playerIndex, hexIndex) {
+  const hexVerts = new Set(HEX_TO_VERTICES[hexIndex]);
+  return gameState.players
+    .map((p, i) => ({ p, i }))
+    .filter(({ p, i }) =>
+      i !== playerIndex &&
+      totalCards(p) > 0 &&
+      [...p.settlements, ...p.cities].some(b => hexVerts.has(b.intersectionIndex))
+    )
+    .map(({ i }) => i);
+}
+
+export function moveRobber(gameState, playerIndex, hexIndex) {
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (!gameState.robber || gameState.robber.stage !== 'move') return 'The robber cannot move right now';
+  if (hexIndex < 0 || hexIndex >= HEX_TO_VERTICES.length) return 'Invalid hex';
+  if (hexIndex === gameState.robberHex) return 'The robber must move to a different hex';
+
+  const candidates = stealCandidates(gameState, playerIndex, hexIndex);
+  return {
+    ...gameState,
+    robberHex: hexIndex,
+    robber: candidates.length ? { stage: 'steal', candidates } : null,
+  };
+}
+
+export function stealResource(gameState, playerIndex, victimIndex) {
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (!gameState.robber || gameState.robber.stage !== 'steal') return 'No steal is pending';
+  if (!gameState.robber.candidates.includes(victimIndex)) return 'You cannot steal from that player';
+
+  const victim = gameState.players[victimIndex];
+  const deck = RESOURCE_TYPES.flatMap(r => Array(victim.resources[r]).fill(r));
+  const stolen = deck[Math.floor(Math.random() * deck.length)];
+
+  const players = gameState.players.map((p, idx) => {
+    if (idx === victimIndex)
+      return { ...p, resources: { ...p.resources, [stolen]: p.resources[stolen] - 1 } };
+    if (idx === playerIndex)
+      return { ...p, resources: { ...p.resources, [stolen]: p.resources[stolen] + 1 } };
+    return p;
+  });
+
+  return { ...gameState, players, robber: null };
 }

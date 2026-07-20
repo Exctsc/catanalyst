@@ -37,10 +37,16 @@ const initialGameState = {
   },
   dice: null,
   robberHex: DESERT_HEX_INDEX,
+  // Non-null while a rolled 7 is being resolved:
+  //   { stage: 'discard', pending: [playerIndexes], required: { playerIndex: count } }
+  //   { stage: 'move' }
+  //   { stage: 'steal', candidates: [playerIndexes] }
+  robber: null,
   bank: { brick: 19, wood: 19, ore: 19, wheat: 19, sheep: 19 },
   devCardDeck: buildDevCardDeck(),
   longestRoad: null,
   largestArmy: null,
+  winner: null,
   turn: 1,
 };
 
