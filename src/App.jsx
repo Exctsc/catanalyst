@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import initialGameState from './game/gameState'
-import { rollDice, collectResources, placeSettlement } from './game/gameActions'
+import { rollDice, collectResources, placeSettlement, placeRoad, upgradeToCity } from './game/gameActions'
 import HexBoard from './components/HexBoard'
 
 const RESOURCES = ['brick', 'wood', 'ore', 'wheat', 'sheep']
@@ -11,9 +11,18 @@ export default function App() {
   const [message, setMessage] = useState(null)
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
+  const isSetup = gameState.phase === 'setup'
 
   const placements = gameState.players.flatMap(player =>
     player.settlements.map(s => ({ intersectionIndex: s.intersectionIndex, colour: player.colour }))
+  )
+
+  const roadPlacements = gameState.players.flatMap(player =>
+    player.roads.map(r => ({ edgeIndex: r.edgeIndex, colour: player.colour }))
+  )
+
+  const cityPlacements = gameState.players.flatMap(player =>
+    player.cities.map(c => ({ intersectionIndex: c.intersectionIndex, colour: player.colour }))
   )
 
   function handleRoll() {
@@ -26,8 +35,19 @@ export default function App() {
   }
 
   function handleIntersectionClick(intersectionIndex) {
-    if (gameState.phase !== 'setup') return
-    const result = placeSettlement(gameState, gameState.currentPlayerIndex, intersectionIndex)
+    // In play phase, clicking your own settlement upgrades it to a city;
+    // any other intersection attempts a settlement build.
+    const ownSettlement = currentPlayer.settlements.some(s => s.intersectionIndex === intersectionIndex)
+    const result = gameState.phase !== 'setup' && ownSettlement
+      ? upgradeToCity(gameState, gameState.currentPlayerIndex, intersectionIndex)
+      : placeSettlement(gameState, gameState.currentPlayerIndex, intersectionIndex)
+    if (typeof result === 'string') { setMessage(result); return }
+    setGameState(result)
+    setMessage(null)
+  }
+
+  function handleEdgeClick(edgeIndex) {
+    const result = placeRoad(gameState, gameState.currentPlayerIndex, edgeIndex)
     if (typeof result === 'string') { setMessage(result); return }
     setGameState(result)
     setMessage(null)
@@ -48,14 +68,14 @@ export default function App() {
         <p style={{ margin: '0 0 12px' }}>
           <strong>Turn {gameState.turn}</strong> — {currentPlayer.name}'s turn
           <span style={{ marginLeft: '10px', fontSize: '13px', color: '#666' }}>
-            ({gameState.phase} phase)
+            ({gameState.phase} phase{isSetup ? ` — place a ${gameState.setup.expecting}` : ''})
           </span>
         </p>
 
-        <button onClick={handleRoll} style={{ padding: '8px 16px', fontSize: '16px', cursor: 'pointer' }}>
+        <button onClick={handleRoll} disabled={isSetup} style={{ padding: '8px 16px', fontSize: '16px', cursor: isSetup ? 'default' : 'pointer' }}>
           Roll Dice
         </button>
-        <button onClick={handleEndTurn} style={{ marginLeft: '10px', padding: '8px 16px', fontSize: '16px', cursor: 'pointer' }}>
+        <button onClick={handleEndTurn} disabled={isSetup} style={{ marginLeft: '10px', padding: '8px 16px', fontSize: '16px', cursor: isSetup ? 'default' : 'pointer' }}>
           End Turn
         </button>
 
@@ -98,7 +118,13 @@ export default function App() {
         </table>
       </div>
 
-      <HexBoard placements={placements} onIntersectionClick={handleIntersectionClick} />
+      <HexBoard
+        placements={placements}
+        roads={roadPlacements}
+        cities={cityPlacements}
+        onIntersectionClick={handleIntersectionClick}
+        onEdgeClick={handleEdgeClick}
+      />
     </div>
   )
 }

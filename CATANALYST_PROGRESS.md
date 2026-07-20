@@ -14,12 +14,19 @@ SVG board renderer. All board constants are local to this file.
 - **NUMBERS** — 19 number tokens (`null` for desert), matching standard Catan distribution (2,3,3,4,4,5,5,6,6,–,8,8,9,9,10,10,11,11,12).
 - **VERTICES** (IIFE) — 54 unique intersection points computed by walking every hex corner in row-major order and deduplicating by rounded coordinate. Indices 0–53 are the canonical intersection indices used everywhere else.
 - **PORTS** — 9 hardcoded `{x, y, label, fill, text}` objects placed around the board edge.
+- Imports **EDGES** from `gameRules.js` for road rendering (edge indices shared with `placeRoad`).
 - `hexPoints(cx, cy)` — returns SVG polygon point string for a pointy-top hex.
 - `Token` component — renders the circular number token with pip dots (pip count = `6 - |7 - n|`; 6 and 8 in red).
 - `PortLabel` component — rounded-rect label with coloured background.
-- `HexBoard({ placements, onIntersectionClick })` — the exported component. Accepts:
+- `edgeEndpoints(edgeIndex, shrink)` — edge line coordinates shrunk toward the midpoint so roads don't cover intersection dots.
+- `RoadSlot` component — translucent white clickable line on an empty edge; brightens on hover.
+- `Road` component — thick player-coloured line with a dark outline for a placed road.
+- `HexBoard({ placements, roads, cities, onIntersectionClick, onEdgeClick })` — the exported component. Accepts:
   - `placements` — array of `{ intersectionIndex, colour }` drawn as coloured dots (r=7) on the board.
+  - `roads` — array of `{ edgeIndex, colour }` drawn as coloured road lines.
+  - `cities` — array of `{ intersectionIndex, colour }` drawn as 16×16 coloured squares (visually distinct from settlement dots).
   - `onIntersectionClick(i)` — optional; if present, every vertex becomes `cursor:pointer` and fires with the vertex index on click.
+  - `onEdgeClick(e)` — optional; if present, empty edges render as clickable `RoadSlot`s and fire with the edge index on click.
 
 ---
 
@@ -41,8 +48,10 @@ Pure functions; each returns a new game state or an error string. Imports graph 
 
 - **`rollDice()`** — returns `{ die1, die2, total, isRobber }`.
 - **`collectResources(gameState, diceTotal)`** — for each player × settlement, looks up adjacent hexes via `VERTEX_TO_HEXES`, awards 1 resource per matching-number hex (2 if a city occupies the same intersection). Deducts from bank with `Math.min` guard. No-op on 7.
-- **`placeSettlement(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, intersection unoccupied, no adjacent building (distance rule), sufficient resources outside setup. Returns updated state or an error string.
-- **`placeRoad(gameState, playerIndex, edgeIndex)`** — validates: correct turn, edge within bounds, edge unoccupied, at least one endpoint in the player's network (settlements + cities + existing road endpoints). Deducts 1 brick + 1 wood outside setup. Returns updated state or error string.
+- **`placeSettlement(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, intersection unoccupied, no adjacent building (distance rule), sufficient resources outside setup. During setup, also enforces the 2-settlement limit and settlement-then-road ordering; the second setup settlement grants 1 resource per adjacent producing hex (bank-capped). Returns updated state or an error string.
+- **`placeRoad(gameState, playerIndex, edgeIndex)`** — validates: correct turn, edge within bounds, edge unoccupied, at least one endpoint in the player's network (settlements + cities + existing road endpoints). Deducts 1 brick + 1 wood outside setup. During setup, the road must touch the settlement just placed; placing it completes the setup turn and advances the snake order (or transitions to `phase: 'play'` with player 1 after all 8 turns). Returns updated state or error string.
+- **`upgradeToCity(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, not setup phase, the player has a settlement at that intersection, 2 wheat + 3 ore available. Moves the settlement into `cities`, deducts resources to the bank. Returns updated state or error string.
+- `setupPlayerFor(turnIndex)` (internal) — maps setup turn 0–7 to the snake order 1,2,3,4,4,3,2,1.
 
 *Note:* `HEX_TILES` and `HEX_NUMBERS` are duplicated here from `HexBoard.jsx` and kept in sync manually.
 
@@ -53,9 +62,10 @@ Exports a single `initialGameState` object representing a fresh 4-player game.
 
 | Field | Value |
 |---|---|
-| `players` | 4 players; Player 1 has 2 test settlements at intersections 0 and 12 |
+| `players` | 4 players, all starting empty (test settlements removed — the setup phase now places real ones) |
 | `currentPlayerIndex` | `0` |
 | `phase` | `"setup"` |
+| `setup` | `{ turnIndex: 0, settlementsPlaced: [0,0,0,0], roadsPlaced: [0,0,0,0], expecting: 'settlement', lastSettlementIndex: null }` — set to `null` when setup completes |
 | `dice` | `null` |
 | `robberHex` | `9` (desert) |
 | `bank` | all 5 resources at 19 |
@@ -64,21 +74,18 @@ Exports a single `initialGameState` object representing a fresh 4-player game.
 | `largestArmy` | `null` |
 | `turn` | `1` |
 
-Player 1 test settlements:
-- Intersection **0** (−H/2, 25) — adjacent to hexes 0 (mountains #2), 1 (fields #3), 4 (hills #4). Produces ore on roll 2, wheat on roll 3, brick on roll 4.
-- Intersection **12** (H, −50) — adjacent to hex 2 (forest #3) only. Produces wood on roll 3.
-
 ---
 
 ### `src/App.jsx`
 Top-level UI. Holds `gameState` and `diceResult` in React state.
 
-- Displays current player name, turn number, and phase.
-- **Roll Dice** button — calls `rollDice()`, then `collectResources()` if not a 7. Shows result inline; displays "Robber!" in red on a 7.
-- **End Turn** button — increments `currentPlayerIndex` mod 4, clears dice result and messages.
-- Intersection click handler — in setup phase, calls `placeSettlement()`; shows inline error messages on failure.
+- Displays current player name, turn number, and phase; during setup also shows what the current player must place ("place a settlement" / "place a road").
+- **Roll Dice** button — calls `rollDice()`, then `collectResources()` if not a 7. Shows result inline; displays "Robber!" in red on a 7. Disabled during setup.
+- **End Turn** button — increments `currentPlayerIndex` mod 4, clears dice result and messages. Disabled during setup (setup advances automatically after each road).
+- Intersection click handler — in setup phase calls `placeSettlement()`; in play phase, clicking the current player's own settlement calls `upgradeToCity()`, any other intersection attempts `placeSettlement()`. Inline error messages on failure.
+- Edge click handler — calls `placeRoad()` in both phases; inline error messages on failure.
 - Resource table — all 4 players × 5 resources, updates live after every roll.
-- Passes `placements` and `onIntersectionClick` down to `HexBoard`.
+- Passes `placements`, `roads`, `cities`, `onIntersectionClick`, and `onEdgeClick` down to `HexBoard`.
 
 ---
 
@@ -98,23 +105,24 @@ Top-level UI. Holds `gameState` and `diceResult` in React state.
 - [x] End Turn cycles through all 4 players
 - [x] `placeRoad()` logic fully implemented and validated in `gameActions.js`
 - [x] Full board graph in `gameRules.js`: 54 vertices, 72 edges, adjacency lists, hex-to-vertex mapping
+- [x] Road placement UI: clickable/hoverable edge slots, roads rendered as player-coloured lines, connectivity + cost enforced
+- [x] Setup phase: snake order (1,2,3,4,4,3,2,1), exactly 1 settlement + 1 connected road per setup turn, 2 of each per player, auto-advance
+- [x] Second setup settlement grants starting resources from adjacent hexes (first grants nothing)
+- [x] Phase transition from `"setup"` to `"play"` after all 8 setup turns, starting with player 1
+- [x] Roll Dice / End Turn disabled during setup
+- [x] City upgrades: click your own settlement in play phase, costs 2 wheat + 3 ore, graceful failure if short
+- [x] Cities rendered as coloured squares (settlements remain circles); cities produce 2 on matching rolls
 
 ---
 
 ## Not Yet Built
 
-- [ ] Road rendering on the board (roads tracked in state, not visualised)
-- [ ] Road placement UI (no way to call `placeRoad` from the interface)
-- [ ] City placement (upgrade a settlement to a city for double production)
-- [ ] City visualisation on the board
 - [ ] Robber mechanic (roll 7 shows text but doesn't move the robber or trigger discard)
 - [ ] Dev card drawing, playing, and effects (deck is shuffled and stored; no UI exists)
-- [ ] Victory point tracking (field exists, never updated)
+- [ ] Victory point tracking (field exists, never updated — settlements/cities/awards don't add VP yet)
 - [ ] Win condition check (first to 10 VP wins)
 - [ ] Longest Road award (tracked as `null`, never computed)
 - [ ] Largest Army award (tracked as `null`, never computed)
-- [ ] Setup phase structure (standard Catan: each player places 2 settlements + 2 roads in snake order; second settlement gives free resources from adjacent hexes)
-- [ ] Phase transition from `"setup"` to `"play"` (game stays in setup indefinitely)
 - [ ] Turn counter incrementing (`turn` field always stays at 1)
 - [ ] `gameState.dice` field is never written (dice result lives only in local React state)
 - [ ] Trading (bank trades, port trades, player-to-player trades)
@@ -131,10 +139,10 @@ Top-level UI. Holds `gameState` and `diceResult` in React state.
 
 3. **`placeRoad` road-blocking rule missing.** In standard Catan an opponent's settlement severs road connectivity — a road cannot be extended through it. `placeRoad` only checks that one endpoint is in the player's network and does not check for blocking settlements.
 
-4. **Roll Dice works in setup phase.** There is no guard preventing a player from rolling dice (and collecting resources) while `phase === "setup"`. In standard Catan, dice are only rolled during the play phase.
+4. **`socket.io-client` installed but unused.** It is listed as a production dependency in `package.json` (presumably from the project scaffold) but nothing imports it.
 
-5. **Unlimited settlements in setup.** There is no upper bound enforced on how many settlements a player can place during setup. Standard Catan allows exactly 2 per player.
+5. **Player index not validated in action functions.** `placeSettlement`, `placeRoad`, and `upgradeToCity` do not check that `playerIndex` is a valid index into `gameState.players`, so an out-of-range value would produce a runtime error instead of a clean error string.
 
-6. **`socket.io-client` installed but unused.** It is listed as a production dependency in `package.json` (presumably from the project scaffold) but nothing imports it.
+6. **Play-phase settlements skip the road-connectivity rule.** Outside setup, `placeSettlement` checks resources and the distance rule but not that the intersection touches one of the player's roads (standard Catan requires it).
 
-7. **Player index not validated in action functions.** `placeSettlement` and `placeRoad` do not check that `playerIndex` is a valid index into `gameState.players`, so an out-of-range value would produce a runtime error instead of a clean error string.
+*Fixed since last update:* Roll Dice in setup (buttons now disabled), unlimited setup settlements (2-per-player limit enforced).

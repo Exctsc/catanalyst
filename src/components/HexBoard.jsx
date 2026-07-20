@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { EDGES } from '../game/gameRules.js';
+
 const SIZE = 50;
 const H_SPACING = SIZE * Math.sqrt(3);
 const V_SPACING = SIZE * 1.5;
@@ -134,14 +137,56 @@ function PortLabel({ x, y, label, fill, text }) {
   );
 }
 
+// Shrink an edge's endpoints toward its midpoint so roads don't cover intersection dots
+function edgeEndpoints(edgeIndex, shrink) {
+  const [v1, v2] = EDGES[edgeIndex];
+  const a = VERTICES[v1];
+  const b = VERTICES[v2];
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2;
+  return {
+    x1: mx + (a.x - mx) * shrink, y1: my + (a.y - my) * shrink,
+    x2: mx + (b.x - mx) * shrink, y2: my + (b.y - my) * shrink,
+  };
+}
+
+function RoadSlot({ edgeIndex, onEdgeClick }) {
+  const [hovered, setHovered] = useState(false);
+  const { x1, y1, x2, y2 } = edgeEndpoints(edgeIndex, 0.62);
+  return (
+    <line
+      x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke={hovered ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)'}
+      strokeWidth={hovered ? 8 : 6}
+      strokeLinecap="round"
+      onClick={() => onEdgeClick(edgeIndex)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ cursor: 'pointer' }}
+    />
+  );
+}
+
+function Road({ edgeIndex, colour }) {
+  const { x1, y1, x2, y2 } = edgeEndpoints(edgeIndex, 0.72);
+  return (
+    <g>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#222" strokeWidth={9} strokeLinecap="round" />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={colour} strokeWidth={5.5} strokeLinecap="round" />
+    </g>
+  );
+}
+
 const PAD = 65;
 const VB_W = 5 * H_SPACING + 2 * PAD;
 const VB_H = 4 * V_SPACING + 2 * SIZE + 2 * PAD;
 const VB_MIN_X = -2.5 * H_SPACING - PAD;
 const VB_MIN_Y = -SIZE - PAD;
 
-export default function HexBoard({ placements = [], onIntersectionClick }) {
+export default function HexBoard({ placements = [], roads = [], cities = [], onIntersectionClick, onEdgeClick }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
+  const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
+  const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const hexes = [];
   let idx = 0;
   ROWS.forEach((count, row) => {
@@ -174,7 +219,30 @@ export default function HexBoard({ placements = [], onIntersectionClick }) {
         {PORTS.map((port, i) => (
           <PortLabel key={i} {...port} />
         ))}
+        {EDGES.map((_, edgeIndex) => {
+          const colour = roadMap.get(edgeIndex);
+          if (colour) return <Road key={edgeIndex} edgeIndex={edgeIndex} colour={colour} />;
+          if (!onEdgeClick) return null;
+          return <RoadSlot key={edgeIndex} edgeIndex={edgeIndex} onEdgeClick={onEdgeClick} />;
+        })}
         {VERTICES.map(({ x, y }, i) => {
+          const cityColour = cityMap.get(i);
+          if (cityColour) {
+            const s = 16;
+            return (
+              <rect
+                key={i}
+                x={x - s / 2} y={y - s / 2}
+                width={s} height={s}
+                rx={2}
+                fill={cityColour}
+                stroke="white"
+                strokeWidth={2}
+                onClick={onIntersectionClick ? () => onIntersectionClick(i) : undefined}
+                style={onIntersectionClick ? { cursor: 'pointer' } : undefined}
+              />
+            );
+          }
           const colour = settlementMap.get(i);
           return (
             <circle
