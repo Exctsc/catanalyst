@@ -15,6 +15,12 @@ const TILE_TO_RESOURCE = {
 };
 const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
 
+// Single shared log helper — every action appends human-readable entries
+// through this; playerIndex colours the entry in the UI (null = system line).
+function log(gameState, playerIndex, text) {
+  return { ...gameState, log: [...gameState.log, { id: gameState.log.length, playerIndex, text }] };
+}
+
 export function rollDice() {
   const die1 = Math.ceil(Math.random() * 6);
   const die2 = Math.ceil(Math.random() * 6);
@@ -22,14 +28,35 @@ export function rollDice() {
   return { die1, die2, total, isRobber: total === 7 };
 }
 
+// The whole roll as one state transition (so App's functional update stays
+// atomic against rapid clicks): roll, log, then collect or start the robber.
+export function performRoll(gameState) {
+  if (gameState.phase !== 'play' || gameState.dice !== null || gameState.winner !== null) return gameState;
+  const result = rollDice();
+  const player = gameState.players[gameState.currentPlayerIndex];
+  let s = log({ ...gameState, dice: result }, gameState.currentPlayerIndex,
+    `${player.name} rolled ${result.die1} + ${result.die2} = ${result.total}`);
+  if (result.isRobber) return startRobber(s);
+  return collectResources(s, result.total);
+}
+
+export function endTurn(gameState) {
+  if (gameState.phase !== 'play' || gameState.robber !== null || gameState.winner !== null) return gameState;
+  const next = (gameState.currentPlayerIndex + 1) % gameState.players.length;
+  return log({ ...gameState, currentPlayerIndex: next, dice: null }, next,
+    `${gameState.players[next].name}'s turn`);
+}
+
 // Each settlement is at an intersectionIndex; check all adjacent hexes for production.
 export function collectResources(gameState, diceTotal) {
   if (diceTotal === 7) return gameState;
 
   const bank = { ...gameState.bank };
+  const gains = [];
 
-  const players = gameState.players.map(player => {
+  const players = gameState.players.map((player, playerIdx) => {
     const resources = { ...player.resources };
+    const gained = {};
 
     const buildings = [
       ...player.settlements.map(s => ({ intersectionIndex: s.intersectionIndex, amount: 1 })),
@@ -45,13 +72,20 @@ export function collectResources(gameState, diceTotal) {
         if (payout <= 0) return;
         resources[resource] += payout;
         bank[resource] -= payout;
+        gained[resource] = (gained[resource] || 0) + payout;
       });
     });
 
+    if (Object.keys(gained).length) gains.push({ playerIdx, gained });
     return { ...player, resources };
   });
 
-  return { ...gameState, players, bank };
+  let s = { ...gameState, players, bank };
+  gains.forEach(({ playerIdx, gained }) => {
+    const detail = Object.entries(gained).map(([r, n]) => `${n} ${r}`).join(', ');
+    s = log(s, playerIdx, `${gameState.players[playerIdx].name} collected ${detail}`);
+  });
+  return s;
 }
 
 // Snake order 1,2,3,4,4,3,2,1 — maps setup turnIndex (0–7) to a player index
@@ -66,7 +100,10 @@ function updateVictory(gameState, playerIndex) {
     idx === playerIndex ? { ...p, victoryPoints: p.settlements.length + 2 * p.cities.length } : p
   );
   const winner = players[playerIndex].victoryPoints >= 10 ? playerIndex : gameState.winner;
-  return { ...gameState, players, winner };
+  let s = { ...gameState, players, winner };
+  if (winner === playerIndex && gameState.winner === null)
+    s = log(s, playerIndex, `🏆 ${players[playerIndex].name} wins with 10 victory points!`);
+  return s;
 }
 
 function isOccupied(gameState, intersectionIndex) {
@@ -129,7 +166,15 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
     lastSettlementIndex: intersectionIndex,
   } : gameState.setup;
 
-  return updateVictory({ ...gameState, players, bank, setup }, playerIndex);
+  const playerName = gameState.players[playerIndex].name;
+  let s = log({ ...gameState, players, bank, setup }, playerIndex, `${playerName} built a settlement`);
+  if (isSecondSetupSettlement) {
+    const granted = players[playerIndex].resources;
+    const detail = RESOURCE_TYPES.filter(r => granted[r] > gameState.players[playerIndex].resources[r])
+      .map(r => `${granted[r] - gameState.players[playerIndex].resources[r]} ${r}`).join(', ');
+    if (detail) s = log(s, playerIndex, `${playerName} received starting resources: ${detail}`);
+  }
+  return updateVictory(s, playerIndex);
 }
 
 export function placeRoad(gameState, playerIndex, edgeIndex) {
@@ -176,24 +221,28 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
     ...gameState.bank, brick: gameState.bank.brick + 1, wood: gameState.bank.wood + 1,
   };
 
-  if (!isSetup) return { ...gameState, players, bank };
+  const playerName = gameState.players[playerIndex].name;
+  const roadPlaced = log({ ...gameState, players, bank }, playerIndex, `${playerName} built a road`);
+
+  if (!isSetup) return roadPlaced;
 
   // Setup turn complete — advance the snake order or transition to play
   const roadsPlaced = gameState.setup.roadsPlaced.map((n, idx) => idx === playerIndex ? n + 1 : n);
   const turnIndex = gameState.setup.turnIndex + 1;
 
   if (turnIndex === 8) {
-    return {
-      ...gameState, players, bank,
+    return log({
+      ...roadPlaced,
       phase: 'play',
       currentPlayerIndex: 0,
       setup: null,
-    };
+    }, null, `Setup complete — ${gameState.players[0].name} begins the game`);
   }
 
-  return {
-    ...gameState, players, bank,
-    currentPlayerIndex: setupPlayerFor(turnIndex),
+  const nextPlayer = setupPlayerFor(turnIndex);
+  return log({
+    ...roadPlaced,
+    currentPlayerIndex: nextPlayer,
     setup: {
       ...gameState.setup,
       roadsPlaced,
@@ -201,7 +250,7 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
       expecting: 'settlement',
       lastSettlementIndex: null,
     },
-  };
+  }, nextPlayer, `${gameState.players[nextPlayer].name}'s turn to place`);
 }
 
 export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
@@ -229,7 +278,9 @@ export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
 
   const bank = { ...gameState.bank, wheat: gameState.bank.wheat + 2, ore: gameState.bank.ore + 3 };
 
-  return updateVictory({ ...gameState, players, bank }, playerIndex);
+  const s = log({ ...gameState, players, bank }, playerIndex,
+    `${gameState.players[playerIndex].name} upgraded a settlement to a city`);
+  return updateVictory(s, playerIndex);
 }
 
 export function bankTrade(gameState, playerIndex, give, receive) {
@@ -256,7 +307,8 @@ export function bankTrade(gameState, playerIndex, give, receive) {
     [receive]: gameState.bank[receive] - 1,
   };
 
-  return { ...gameState, players, bank };
+  return log({ ...gameState, players, bank }, playerIndex,
+    `${gameState.players[playerIndex].name} traded 4 ${give} for 1 ${receive} with the bank`);
 }
 
 function totalCards(player) {
@@ -270,9 +322,13 @@ export function startRobber(gameState) {
     .map((p, i) => ({ i, total: totalCards(p) }))
     .filter(x => x.total > 7);
 
-  if (overLimit.length === 0) return { ...gameState, robber: { stage: 'move' } };
+  if (overLimit.length === 0) {
+    return log({ ...gameState, robber: { stage: 'move' } },
+      gameState.currentPlayerIndex,
+      `${gameState.players[gameState.currentPlayerIndex].name} is moving the robber`);
+  }
 
-  return {
+  let s = {
     ...gameState,
     robber: {
       stage: 'discard',
@@ -280,6 +336,10 @@ export function startRobber(gameState) {
       required: Object.fromEntries(overLimit.map(x => [x.i, Math.floor(x.total / 2)])),
     },
   };
+  overLimit.forEach(x => {
+    s = log(s, x.i, `${gameState.players[x.i].name} must discard ${Math.floor(x.total / 2)} cards`);
+  });
+  return s;
 }
 
 // discards is { resource: count }; total must equal the player's required count
@@ -306,10 +366,14 @@ export function discardCards(gameState, playerIndex, discards) {
   });
 
   const pending = robber.pending.filter(i => i !== playerIndex);
-  return {
-    ...gameState, players, bank,
-    robber: pending.length ? { ...robber, pending } : { stage: 'move' },
-  };
+  const detail = entries.map(([r, n]) => `${n} ${r}`).join(', ');
+  let s = log({ ...gameState, players, bank }, playerIndex,
+    `${player.name} discarded ${detail}`);
+  if (!pending.length) {
+    s = log(s, gameState.currentPlayerIndex,
+      `${gameState.players[gameState.currentPlayerIndex].name} is moving the robber`);
+  }
+  return { ...s, robber: pending.length ? { ...robber, pending } : { stage: 'move' } };
 }
 
 // Opponents with a settlement or city on the hex and at least one card
@@ -332,11 +396,14 @@ export function moveRobber(gameState, playerIndex, hexIndex) {
   if (hexIndex === gameState.robberHex) return 'The robber must move to a different hex';
 
   const candidates = stealCandidates(gameState, playerIndex, hexIndex);
-  return {
+  const tile = HEX_TILES[hexIndex];
+  const number = HEX_NUMBERS[hexIndex];
+  return log({
     ...gameState,
     robberHex: hexIndex,
     robber: candidates.length ? { stage: 'steal', candidates } : null,
-  };
+  }, playerIndex,
+    `${gameState.players[playerIndex].name} moved the robber to ${tile}${number !== null ? ` (${number})` : ''}`);
 }
 
 export function stealResource(gameState, playerIndex, victimIndex) {
@@ -356,5 +423,6 @@ export function stealResource(gameState, playerIndex, victimIndex) {
     return p;
   });
 
-  return { ...gameState, players, robber: null };
+  return log({ ...gameState, players, robber: null }, playerIndex,
+    `${gameState.players[playerIndex].name} stole a card from ${victim.name}`);
 }

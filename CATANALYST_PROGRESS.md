@@ -50,8 +50,11 @@ All structures are derived from the same traversal algorithm as `HexBoard.jsx`, 
 ### `src/game/gameActions.js`
 Pure functions; each returns a new game state or an error string. Imports graph data from `gameRules.js`.
 
-- **`rollDice()`** — returns `{ die1, die2, total, isRobber }`.
-- **`collectResources(gameState, diceTotal)`** — for each player × building, looks up adjacent hexes via `VERTEX_TO_HEXES`, awards 1 resource per matching-number hex for settlements, 2 for cities. Hexes occupied by the robber (`gameState.robberHex`) produce nothing. Deducts from bank with `Math.min` guard. No-op on 7.
+- `log(gameState, playerIndex, text)` (internal) — the single shared log helper. Appends `{ id, playerIndex, text }` to `gameState.log` (`playerIndex: null` = system line). Every action that mutates the game funnels its human-readable entries through this one function; there is no log-writing logic at any call site.
+- **`rollDice()`** — returns `{ die1, die2, total, isRobber }` (pure randomness only, no state/log).
+- **`performRoll(gameState)`** — the whole roll as one state transition so `App`'s functional update stays atomic against rapid clicks: no-ops unless play phase with `dice === null` and no winner; otherwise rolls, logs `"X rolled a + b = n"`, then either `startRobber()` (on a 7) or `collectResources()`.
+- **`endTurn(gameState)`** — no-ops during setup / robber resolution / after a win; otherwise advances `currentPlayerIndex`, clears `dice`, and logs the new player's turn.
+- **`collectResources(gameState, diceTotal)`** — for each player × building, looks up adjacent hexes via `VERTEX_TO_HEXES`, awards 1 resource per matching-number hex for settlements, 2 for cities. Hexes occupied by the robber (`gameState.robberHex`) produce nothing. Deducts from bank with `Math.min` guard. No-op on 7. Logs one `"X collected …"` line per player who gained anything.
 - **`placeSettlement(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, intersection unoccupied, no adjacent building (distance rule), sufficient resources outside setup. During setup, also enforces the 2-settlement limit and settlement-then-road ordering; the second setup settlement grants 1 resource per adjacent producing hex (bank-capped). Returns updated state or an error string.
 - **`placeRoad(gameState, playerIndex, edgeIndex)`** — validates: correct turn, edge within bounds, edge unoccupied, at least one endpoint in the player's network (settlements + cities + existing road endpoints). Deducts 1 brick + 1 wood outside setup. During setup, the road must touch the settlement just placed; placing it completes the setup turn and advances the snake order (or transitions to `phase: 'play'` with player 1 after all 8 turns). Returns updated state or error string.
 - **`upgradeToCity(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, not setup phase, the player has a settlement at that intersection, 2 wheat + 3 ore available. Moves the settlement into `cities`, deducts resources to the bank. Returns updated state or error string.
@@ -63,7 +66,7 @@ Pure functions; each returns a new game state or an error string. Imports graph 
 - `updateVictory(gameState, playerIndex)` (internal) — recomputes that player's `victoryPoints` (1 per settlement, 2 per city) and sets `winner` at ≥10. Called at the end of `placeSettlement` and `upgradeToCity`.
 - `setupPlayerFor(turnIndex)` (internal) — maps setup turn 0–7 to the snake order 1,2,3,4,4,3,2,1.
 
-Guards: all placement/trade actions return `'Game is over'` once `winner` is set, and `'Resolve the robber first'` while `robber` is non-null.
+Guards: all placement/trade actions return `'Game is over'` once `winner` is set, and `'Resolve the robber first'` while `robber` is non-null. Every mutating action also appends a log entry via `log()` (settlement/road/city build, starting-resource grant, trade, roll, collection, discard, robber move, steal, turn change, win).
 
 *Note:* `HEX_TILES` and `HEX_NUMBERS` are duplicated here from `HexBoard.jsx` and kept in sync manually.
 
@@ -86,28 +89,35 @@ Exports a single `initialGameState` object representing a fresh 4-player game.
 | `longestRoad` | `null` |
 | `largestArmy` | `null` |
 | `winner` | `null` — set to the winning player's index at 10 VP; every action rejects once set |
+| `log` | `[{ id, playerIndex, text }]` — append-only event log, seeded with one system line. `playerIndex: null` marks a system entry; otherwise it tags/colours the entry by acting player |
 | `turn` | `1` |
 
 ---
 
 ### `src/App.jsx`
-Top-level UI. Holds `gameState`, `message`, and the two trade selects in React state (the dice result lives in `gameState.dice`, not local state).
+Top-level UI, restructured this session into a Colonist.io-style product layout (styled via `game.css`, no inline debug styling). Holds `gameState`, `message` (transient error toast), the two trade selects, the active sidebar `tab`, `tradeOpen`/`buildOpen` popover toggles, and `chatMessages` (local-only). The dice result lives in `gameState.dice`.
 
-- Displays current player name, turn number, and phase; during setup also shows what the current player must place ("place a settlement" / "place a road").
-- **Roll Dice** button — the entire roll happens inside one functional `setGameState` that no-ops if `phase !== 'play'`, dice are already set, or the game is won — so rapid clicking cannot roll or collect twice. On a 7 it calls `startRobber()`; otherwise `collectResources()`. Disabled during setup, after rolling, and after a win.
-- **End Turn** button — advances `currentPlayerIndex` and clears `dice`, also guarded inside the functional update (no-op during setup/robber resolution/after a win, in addition to being disabled).
-- **Bank trade (4:1) row** — give/receive selects + Trade button calling `bankTrade()`; hidden during setup.
-- **Robber UI** (rendered by `gameState.robber.stage`): `DiscardPanel` (per-resource number inputs; confirm enabled only at the exact required count; keyed per player so inputs reset between discarders) → "click a hex to move the robber" hint with `onHexClick` passed to the board → steal buttons, one per candidate opponent.
-- **Winner banner** — "🏆 Player X wins!" in the winner's colour, shown once `gameState.winner` is set.
-- Intersection click handler — in setup phase calls `placeSettlement()`; in play phase, clicking the current player's own settlement calls `upgradeToCity()`, any other intersection attempts `placeSettlement()`. Inline error messages on failure.
-- Edge click handler — calls `placeRoad()` in both phases; inline error messages on failure.
-- Resource table — all 4 players × 5 resources + a live VP column.
-- Passes `placements`, `roads`, `cities`, `robberHex`, `onIntersectionClick`, `onEdgeClick`, and (during the move stage) `onHexClick` down to `HexBoard`.
+Layout regions inside `.g-app` (flex column, full-height):
+- **Header** (`.g-header`) — brand, whose turn (in their colour), phase + turn number, and a right-aligned status chip. The chip mirrors robber/discard/steal state (alert-styled) or the setup prompt.
+- **Body** (`.g-body`, flex row): **center** (`.g-center`) holds the `HexBoard` (now sized to its container rather than forcing `100vh`), the error toast, and the win overlay; **right sidebar** (`.g-sidebar`) stacks a **player list** and a **tabbed panel**.
+- **Bottom tray** (`.g-tray`) — the current player's five resource cards as coloured chips with counts, then a right-aligned action group: dice readout, Roll Dice (primary), Trade, Build, End Turn, plus the contextual robber `DiscardPanel` / steal buttons. Trade and Build open small popovers; Build's popover lists costs and reminds that building is done by clicking the board (unchanged interaction).
+- Handlers unchanged in behaviour; a shared `apply(result)` commits state or surfaces the error string as a toast. `handleRoll`/`handleEndTurn` call the new `performRoll`/`endTurn` transitions inside a functional `setGameState` (still atomic against rapid clicks). All the placement/trade/robber wiring is identical to before — this was a layout pass, not a logic change.
+
+Components in this file: `ResourceChip`, `DiscardPanel` (restyled), `PlayerList`, `GameLog`, `Chat`.
+
+- **`PlayerList`** — one row per player: colour swatch, name, resource-card count, VP; the current player's row is highlighted.
+- **`GameLog`** — renders `gameState.log` newest-at-bottom, each entry left-bordered in the acting player's colour (system lines italic/dim), auto-scrolling to the newest entry via a `useEffect` on `log.length`.
+- **`Chat`** — local-only message list + input (author = current player, colour-coded). **UI only: there is no backend, messages never leave the browser.** Marked with `// TODO: wire to Socket.io once multiplayer backend exists` in `handleSendChat`.
+
+---
+
+### `src/game.css`
+Cohesive dark product theme for the game screen (imported by `App.jsx`). Defines CSS variables for panels/borders/text/accent and the five resource colours, overrides the Vite scaffold's `#root` constraints (fixed width / centered text) so the app fills the viewport, and styles every region above (`.g-header`, `.g-body`, `.g-sidebar`, `.g-players`, `.g-tabs`, `.g-log`, `.g-chat`, `.g-tray`, `.g-card`, `.g-btn`, popovers, discard/steal rows, win overlay).
 
 ---
 
 ### `tests/`
-Node test suites over the pure game modules (`npm test` runs them all; each exits non-zero on failure): `roads`, `setup`, `cities`, `trade`, `robber`, `win` — 136 assertions total.
+Node test suites over the pure game modules (`npm test` runs them all; each exits non-zero on failure): `roads`, `setup`, `cities`, `trade`, `robber`, `win`, `log` — 152 assertions total. The `log` suite covers the seed entry, per-action entries, sequential ids, player tagging, and the `performRoll`/`endTurn` transitions.
 
 ---
 
@@ -139,9 +149,12 @@ Node test suites over the pure game modules (`npm test` runs them all; each exit
 - [x] Robber: discard-half (rounded down) for every player over 7 cards, prompted individually with exact-count enforcement
 - [x] Robber: current player moves it to a different hex by clicking the board; marker rendered; robbed hex produces nothing
 - [x] Robber: steal 1 random card from a chosen adjacent opponent (cardless opponents excluded; none adjacent → no steal)
-- [x] Victory points (1/settlement, 2/city) tracked live in the table
-- [x] Win at 10 VP: banner in winner's colour, all rolls/trades/placements locked out
-- [x] Node test suites in `tests/` (`npm test`): 136 assertions across roads/setup/cities/trade/robber/win
+- [x] Victory points (1/settlement, 2/city) tracked live
+- [x] Win at 10 VP: overlay banner in winner's colour, all rolls/trades/placements locked out
+- [x] Action log: every meaningful action produces a human-readable, player-coloured entry via one shared `log()` helper; rendered in a scrollable, auto-scrolling sidebar panel and persisted in `gameState.log`
+- [x] Restructured game screen: header (turn/phase/status) · center board · right sidebar (player list + Game Log/Chat tabs) · bottom tray (resource hand + Roll/Trade/Build/End Turn), styled cohesively via `game.css`
+- [x] Chat tab — local-only placeholder UI (message list + input), **pending the Socket.io backend**
+- [x] Node test suites in `tests/` (`npm test`): 152 assertions across roads/setup/cities/trade/robber/win/log
 
 ---
 
@@ -152,6 +165,7 @@ Node test suites over the pure game modules (`npm test` runs them all; each exit
 - [ ] Largest Army award (tracked as `null`, never computed)
 - [ ] Turn counter incrementing (`turn` field always stays at 1)
 - [ ] Port trades (2:1/3:1 port labels are rendered but confer no trading benefit) and player-to-player trades
+- [ ] **Multiplayer chat** — the Chat tab is local-only UI; it needs the Socket.io backend to actually send/receive between clients (marked with a `// TODO: wire to Socket.io` in `App.jsx`)
 
 ---
 
@@ -173,6 +187,10 @@ Node test suites over the pure game modules (`npm test` runs them all; each exit
 
 8. **Discard requirement is bank-agnostic in one edge case.** `discardCards` adds discarded cards back to the bank without a cap (fine — bank totals are conserved), but `startRobber` computes `required` once at roll time; if a player's hand somehow changed mid-discard-stage (not currently possible through the UI), the stored requirement would be stale.
 
-*Fixed since last update:* unlimited dice rolls per turn / roll-again after collecting (dice now locked in `gameState.dice`, atomic against rapid clicks), `gameState.dice` never written, End Turn racing past game-over or robber resolution (guarded inside the state updater, not just the disabled attribute).
+9. **Chat is UI-only.** The Chat tab renders and stores messages in local component state (`chatMessages`), never sending them anywhere. It is a placeholder until the Socket.io backend exists — do not mistake it for working multiplayer chat. (Marked in code with `// TODO: wire to Socket.io once multiplayer backend exists`.)
 
-*Assumptions made this session:* robber resolution is modelled as a `gameState.robber` state machine (discard → move → steal) mirroring the `setup` object pattern; discards are prompted one player at a time in player-index order on the shared screen; the win check runs only after settlement placement and city upgrade (the only point sources in scope); test suites moved from the session scratchpad into a permanent `tests/` directory wired to `npm test`.
+10. **Log grows unbounded.** `gameState.log` is append-only with no cap; a very long game accumulates entries indefinitely (fine for a session, but no trimming/virtualisation yet).
+
+*Fixed since last update:* nothing regressed; this was a UI/layout pass. Existing behaviour (dice lock, robber flow, win lockout) preserved and re-verified in-browser through the new layout.
+
+*Assumptions made this session:* the roll and end-turn flows were extracted into `performRoll`/`endTurn` action functions (so the log lives with the other actions rather than in `App`) — behaviour is unchanged and still atomic against rapid clicks; the "Build" tray button opens an informational cost popover rather than a build mode, since building remains board-click driven; chat author is always the current player on the shared hotseat screen; the sidebar is a fixed 320px and the layout targets a normal desktop window (no mobile/responsive pass).

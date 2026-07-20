@@ -48,6 +48,8 @@ const initialGameState = {
   largestArmy: null,
   winner: null,
   turn: 1,
+  // Append-only event log: { id, playerIndex (null = system), text }
+  log: [{ id: 0, playerIndex: null, text: 'Setup phase — Player 1, place a settlement' }],
 };
 
 export default initialGameState;

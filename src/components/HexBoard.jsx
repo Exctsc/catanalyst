@@ -217,11 +217,12 @@ export default function HexBoard({ placements = [], roads = [], cities = [], rob
   });
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
       <svg
         width={VB_W}
         height={VB_H}
         viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
+        style={{ maxWidth: '100%', maxHeight: '100%' }}
       >
         {hexes.map(({ x, y, resource, number }, i) => (
           <g
