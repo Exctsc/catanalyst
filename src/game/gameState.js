@@ -19,10 +19,10 @@ function buildDevCardDeck() {
 
 const initialGameState = {
   players: [
-    { id: 0, name: 'Player 1', colour: '#E74C3C', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], victoryPoints: 0 },
-    { id: 1, name: 'Player 2', colour: '#3498DB', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], victoryPoints: 0 },
-    { id: 2, name: 'Player 3', colour: '#2ECC71', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], victoryPoints: 0 },
-    { id: 3, name: 'Player 4', colour: '#F39C12', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], victoryPoints: 0 },
+    { id: 0, name: 'Player 1', colour: '#E74C3C', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], knightsPlayed: 0, victoryPoints: 0 },
+    { id: 1, name: 'Player 2', colour: '#3498DB', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], knightsPlayed: 0, victoryPoints: 0 },
+    { id: 2, name: 'Player 3', colour: '#2ECC71', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], knightsPlayed: 0, victoryPoints: 0 },
+    { id: 3, name: 'Player 4', colour: '#F39C12', resources: { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }, settlements: [], roads: [], cities: [], devCards: [], knightsPlayed: 0, victoryPoints: 0 },
   ],
   currentPlayerIndex: 0,
   phase: 'setup',
@@ -43,7 +43,14 @@ const initialGameState = {
   //   { stage: 'steal', candidates: [playerIndexes] }
   robber: null,
   bank: { brick: 19, wood: 19, ore: 19, wheat: 19, sheep: 19 },
+  // Draw pile (shuffled once at load). Players' devCards hold { type, newlyBought }
+  // objects; newlyBought blocks playing a card the same turn it was bought.
   devCardDeck: buildDevCardDeck(),
+  // At most one dev card may be *played* per turn; reset by endTurn.
+  devCardPlayedThisTurn: false,
+  // Non-null while resolving a played Road Building card: { remaining: 1|2 }.
+  roadBuilding: null,
+  // Holder player index (or null). longestRoad needs a 5+ chain, largestArmy 3+ knights.
   longestRoad: null,
   largestArmy: null,
   winner: null,

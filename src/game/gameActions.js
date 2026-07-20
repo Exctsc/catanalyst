@@ -42,9 +42,16 @@ export function performRoll(gameState) {
 
 export function endTurn(gameState) {
   if (gameState.phase !== 'play' || gameState.robber !== null || gameState.winner !== null) return gameState;
-  const next = (gameState.currentPlayerIndex + 1) % gameState.players.length;
-  return log({ ...gameState, currentPlayerIndex: next, dice: null }, next,
-    `${gameState.players[next].name}'s turn`);
+  const cur = gameState.currentPlayerIndex;
+  const next = (cur + 1) % gameState.players.length;
+  // Cards bought this turn become playable next turn; clear the per-turn flags.
+  const players = gameState.players.map((p, i) =>
+    i === cur ? { ...p, devCards: p.devCards.map(c => ({ ...c, newlyBought: false })) } : p
+  );
+  return log({
+    ...gameState, players, currentPlayerIndex: next, dice: null,
+    devCardPlayedThisTurn: false, roadBuilding: null,
+  }, next, `${gameState.players[next].name}'s turn`);
 }
 
 // Each settlement is at an intersectionIndex; check all adjacent hexes for production.
@@ -93,17 +100,133 @@ function setupPlayerFor(turnIndex) {
   return turnIndex < 4 ? turnIndex : 7 - turnIndex;
 }
 
-// Recompute a player's victory points (1/settlement, 2/city) and declare a
-// winner at 10. Applied after any action that changes buildings.
-function updateVictory(gameState, playerIndex) {
-  const players = gameState.players.map((p, idx) =>
-    idx === playerIndex ? { ...p, victoryPoints: p.settlements.length + 2 * p.cities.length } : p
-  );
-  const winner = players[playerIndex].victoryPoints >= 10 ? playerIndex : gameState.winner;
-  let s = { ...gameState, players, winner };
-  if (winner === playerIndex && gameState.winner === null)
-    s = log(s, playerIndex, `🏆 ${players[playerIndex].name} wins with 10 victory points!`);
+// Public victory points shown in shared UI: 1/settlement, 2/city, +2 for each
+// award held. Deliberately EXCLUDES hidden Victory Point dev cards.
+function publicVP(gameState, playerIndex) {
+  const p = gameState.players[playerIndex];
+  let vp = p.settlements.length + 2 * p.cities.length;
+  if (gameState.largestArmy === playerIndex) vp += 2;
+  if (gameState.longestRoad === playerIndex) vp += 2;
+  return vp;
+}
+
+function vpCardCount(player) {
+  return player.devCards.filter(c => c.type === 'victoryPoint').length;
+}
+
+// Recompute every player's public VP, then declare a winner at 10 — where the
+// win check counts hidden VP cards on top of the public total. The acting
+// player wins ties (only one player's total changes per action anyway).
+function recomputeVictory(gameState, actingPlayerIndex) {
+  const players = gameState.players.map((p, i) => ({ ...p, victoryPoints: publicVP(gameState, i) }));
+  let s = { ...gameState, players };
+  if (gameState.winner !== null) return s;
+
+  const order = actingPlayerIndex == null
+    ? players.map((_, i) => i)
+    : [actingPlayerIndex, ...players.map((_, i) => i).filter(i => i !== actingPlayerIndex)];
+  let winner = null;
+  for (const i of order) {
+    if (players[i].victoryPoints + vpCardCount(players[i]) >= 10) { winner = i; break; }
+  }
+  if (winner !== null) s = log({ ...s, winner }, winner, `🏆 ${players[winner].name} wins with 10 victory points!`);
   return s;
+}
+
+// Largest Army: 3+ knights and strictly more than the current holder. Ties keep
+// it with the holder. Returns the new holder index (or null / unchanged).
+function recomputeLargestArmy(gameState) {
+  const counts = gameState.players.map(p => p.knightsPlayed || 0);
+  const holder = gameState.largestArmy;
+  if (holder !== null) {
+    let maxOther = -1, maxOtherCount = -1;
+    counts.forEach((c, i) => { if (i !== holder && c > maxOtherCount) { maxOtherCount = c; maxOther = i; } });
+    return maxOtherCount > counts[holder] ? maxOther : holder;
+  }
+  // No holder yet: award to the unique leader with >= 3 knights.
+  let best = -1, bestCount = 2, tie = false;
+  counts.forEach((c, i) => {
+    if (c > bestCount) { best = i; bestCount = c; tie = false; }
+    else if (c === bestCount && bestCount >= 3) tie = true;
+  });
+  return best >= 0 && !tie ? best : null;
+}
+
+// Longest continuous road for one player: the longest trail (no repeated road
+// segment) over their roads, where a trail cannot pass THROUGH a vertex holding
+// an opponent's settlement/city (but may end there). Own buildings never block.
+export function longestRoadLength(gameState, playerIndex) {
+  const roadEdges = gameState.players[playerIndex].roads.map(r => r.edgeIndex);
+  if (roadEdges.length === 0) return 0;
+
+  const blocked = new Set();
+  gameState.players.forEach((p, i) => {
+    if (i === playerIndex) return;
+    p.settlements.forEach(s => blocked.add(s.intersectionIndex));
+    p.cities.forEach(c => blocked.add(c.intersectionIndex));
+  });
+
+  const vertexEdges = new Map();
+  roadEdges.forEach(ei => {
+    const [a, b] = EDGES[ei];
+    if (!vertexEdges.has(a)) vertexEdges.set(a, []);
+    if (!vertexEdges.has(b)) vertexEdges.set(b, []);
+    vertexEdges.get(a).push(ei);
+    vertexEdges.get(b).push(ei);
+  });
+
+  // Longest chain continuing outward from `vertex`, not reusing edges in `used`.
+  function extend(vertex, used) {
+    if (blocked.has(vertex)) return 0;
+    let best = 0;
+    for (const f of vertexEdges.get(vertex) || []) {
+      if (used.has(f)) continue;
+      const [x, y] = EDGES[f];
+      used.add(f);
+      const len = 1 + extend(x === vertex ? y : x, used);
+      used.delete(f);
+      if (len > best) best = len;
+    }
+    return best;
+  }
+
+  let max = 0;
+  for (const ei of roadEdges) {
+    const [a, b] = EDGES[ei];
+    max = Math.max(max, 1 + extend(b, new Set([ei])), 1 + extend(a, new Set([ei])));
+  }
+  return max;
+}
+
+// Longest Road: a 5+ chain, strictly longer than the current holder. Ties keep
+// it with the holder; the holder also loses it if their chain drops below 5.
+function recomputeLongestRoad(gameState) {
+  const lengths = gameState.players.map((_, i) => longestRoadLength(gameState, i));
+  const holder = gameState.longestRoad;
+  if (holder !== null && lengths[holder] >= 5) {
+    let maxOther = -1, maxOtherLen = -1;
+    lengths.forEach((l, i) => { if (i !== holder && l > maxOtherLen) { maxOtherLen = l; maxOther = i; } });
+    return maxOtherLen > lengths[holder] ? maxOther : holder;
+  }
+  let best = -1, bestLen = 4, tie = false;
+  lengths.forEach((l, i) => {
+    if (l > bestLen) { best = i; bestLen = l; tie = false; }
+    else if (l === bestLen && bestLen >= 5) tie = true;
+  });
+  return best >= 0 && !tie ? best : null;
+}
+
+// Recompute Longest Road (which a new road OR a road-breaking settlement can
+// change), log any handover, then recompute VP + win. Used after every build.
+function finalizeBuild(gameState, playerIndex) {
+  const longestRoad = recomputeLongestRoad(gameState);
+  let s = gameState;
+  if (longestRoad !== s.longestRoad) {
+    s = { ...s, longestRoad };
+    if (longestRoad === null) s = log(s, null, 'Longest Road is now unclaimed');
+    else s = log(s, longestRoad, `${s.players[longestRoad].name} takes Longest Road (2 VP)`);
+  }
+  return recomputeVictory(s, playerIndex);
 }
 
 function isOccupied(gameState, intersectionIndex) {
@@ -174,7 +297,8 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
       .map(r => `${granted[r] - gameState.players[playerIndex].resources[r]} ${r}`).join(', ');
     if (detail) s = log(s, playerIndex, `${playerName} received starting resources: ${detail}`);
   }
-  return updateVictory(s, playerIndex);
+  // A settlement on a previously-empty vertex can sever an opponent's road chain.
+  return finalizeBuild(s, playerIndex);
 }
 
 export function placeRoad(gameState, playerIndex, edgeIndex) {
@@ -197,6 +321,8 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
   if (!network.has(v1) && !network.has(v2)) return 'Road must connect to your existing network';
 
   const isSetup = gameState.phase === 'setup';
+  // A played Road Building card grants free roads; otherwise pay 1 brick + 1 wood.
+  const isFreeRoad = !isSetup && gameState.roadBuilding && gameState.roadBuilding.remaining > 0;
 
   if (isSetup) {
     const setup = gameState.setup;
@@ -204,53 +330,71 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
     if (setup.roadsPlaced[playerIndex] >= 2) return 'You have placed both setup roads';
     if (v1 !== setup.lastSettlementIndex && v2 !== setup.lastSettlementIndex)
       return 'Road must connect to the settlement you just placed';
-  } else if (player.resources.brick < 1 || player.resources.wood < 1) {
+  } else if (!isFreeRoad && (player.resources.brick < 1 || player.resources.wood < 1)) {
     return 'Insufficient resources';
   }
 
+  const chargesCost = !isSetup && !isFreeRoad;
   const players = gameState.players.map((p, idx) => {
     if (idx !== playerIndex) return p;
     const roads = [...p.roads, { edgeIndex }];
-    const resources = isSetup ? { ...p.resources } : {
-      ...p.resources, brick: p.resources.brick - 1, wood: p.resources.wood - 1,
-    };
+    const resources = chargesCost
+      ? { ...p.resources, brick: p.resources.brick - 1, wood: p.resources.wood - 1 }
+      : { ...p.resources };
     return { ...p, roads, resources };
   });
 
-  const bank = isSetup ? { ...gameState.bank } : {
-    ...gameState.bank, brick: gameState.bank.brick + 1, wood: gameState.bank.wood + 1,
-  };
+  const bank = chargesCost
+    ? { ...gameState.bank, brick: gameState.bank.brick + 1, wood: gameState.bank.wood + 1 }
+    : { ...gameState.bank };
 
   const playerName = gameState.players[playerIndex].name;
-  const roadPlaced = log({ ...gameState, players, bank }, playerIndex, `${playerName} built a road`);
+  let s = log({ ...gameState, players, bank }, playerIndex,
+    isFreeRoad ? `${playerName} built a free road` : `${playerName} built a road`);
 
-  if (!isSetup) return roadPlaced;
-
-  // Setup turn complete — advance the snake order or transition to play
-  const roadsPlaced = gameState.setup.roadsPlaced.map((n, idx) => idx === playerIndex ? n + 1 : n);
-  const turnIndex = gameState.setup.turnIndex + 1;
-
-  if (turnIndex === 8) {
-    return log({
-      ...roadPlaced,
-      phase: 'play',
-      currentPlayerIndex: 0,
-      setup: null,
-    }, null, `Setup complete — ${gameState.players[0].name} begins the game`);
+  if (isSetup) {
+    // Setup turn complete — advance the snake order or transition to play
+    const roadsPlaced = gameState.setup.roadsPlaced.map((n, idx) => idx === playerIndex ? n + 1 : n);
+    const turnIndex = gameState.setup.turnIndex + 1;
+    if (turnIndex === 8) {
+      s = log({ ...s, phase: 'play', currentPlayerIndex: 0, setup: null },
+        null, `Setup complete — ${gameState.players[0].name} begins the game`);
+    } else {
+      const nextPlayer = setupPlayerFor(turnIndex);
+      s = log({
+        ...s,
+        currentPlayerIndex: nextPlayer,
+        setup: { ...gameState.setup, roadsPlaced, turnIndex, expecting: 'settlement', lastSettlementIndex: null },
+      }, nextPlayer, `${gameState.players[nextPlayer].name}'s turn to place`);
+    }
+  } else if (isFreeRoad) {
+    // Consume one free road; end road-building when spent or no legal spot remains.
+    const remaining = gameState.roadBuilding.remaining - 1;
+    const more = remaining > 0 && hasLegalRoad(s, playerIndex);
+    s = { ...s, roadBuilding: more ? { remaining } : null };
+    if (!more && remaining > 0) s = log(s, playerIndex, `${playerName} has no more legal free roads`);
   }
 
-  const nextPlayer = setupPlayerFor(turnIndex);
-  return log({
-    ...roadPlaced,
-    currentPlayerIndex: nextPlayer,
-    setup: {
-      ...gameState.setup,
-      roadsPlaced,
-      turnIndex,
-      expecting: 'settlement',
-      lastSettlementIndex: null,
-    },
-  }, nextPlayer, `${gameState.players[nextPlayer].name}'s turn to place`);
+  // Recompute Longest Road + VP after every road placement.
+  return finalizeBuild(s, playerIndex);
+}
+
+// A road is legal if the edge is free and touches the player's network.
+function isLegalRoad(gameState, playerIndex, edgeIndex) {
+  if (gameState.players.some(p => p.roads.some(r => r.edgeIndex === edgeIndex))) return false;
+  const player = gameState.players[playerIndex];
+  const [v1, v2] = EDGES[edgeIndex];
+  const network = new Set([
+    ...player.settlements.map(s => s.intersectionIndex),
+    ...player.cities.map(c => c.intersectionIndex),
+    ...player.roads.flatMap(r => EDGES[r.edgeIndex]),
+  ]);
+  return network.has(v1) || network.has(v2);
+}
+
+function hasLegalRoad(gameState, playerIndex) {
+  for (let ei = 0; ei < EDGES.length; ei++) if (isLegalRoad(gameState, playerIndex, ei)) return true;
+  return false;
 }
 
 export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
@@ -280,7 +424,7 @@ export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
 
   const s = log({ ...gameState, players, bank }, playerIndex,
     `${gameState.players[playerIndex].name} upgraded a settlement to a city`);
-  return updateVictory(s, playerIndex);
+  return finalizeBuild(s, playerIndex);
 }
 
 export function bankTrade(gameState, playerIndex, give, receive) {
@@ -425,4 +569,151 @@ export function stealResource(gameState, playerIndex, victimIndex) {
 
   return log({ ...gameState, players, robber: null }, playerIndex,
     `${gameState.players[playerIndex].name} stole a card from ${victim.name}`);
+}
+
+// ---------------------------------------------------------------------------
+// Development cards
+// ---------------------------------------------------------------------------
+
+const DEV_CARD_LABEL = {
+  knight: 'Knight', victoryPoint: 'Victory Point', roadBuilding: 'Road Building',
+  yearOfPlenty: 'Year of Plenty', monopoly: 'Monopoly',
+};
+
+// Buy the top card of the draw pile for 1 ore + 1 wheat + 1 sheep. Multiple
+// purchases per turn are allowed. The card enters the hand as newlyBought.
+export function buyDevCard(gameState, playerIndex) {
+  if (gameState.winner !== null) return 'Game is over';
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.phase === 'setup') return 'Cannot buy dev cards during setup';
+  if (gameState.robber) return 'Resolve the robber first';
+  if (gameState.roadBuilding) return 'Finish placing your free roads first';
+  if (gameState.devCardDeck.length === 0) return 'The dev card deck is empty';
+
+  const res = gameState.players[playerIndex].resources;
+  if (res.ore < 1 || res.wheat < 1 || res.sheep < 1) return 'Insufficient resources';
+
+  const card = gameState.devCardDeck[gameState.devCardDeck.length - 1];
+  const devCardDeck = gameState.devCardDeck.slice(0, -1);
+  const players = gameState.players.map((p, i) => i !== playerIndex ? p : {
+    ...p,
+    resources: { ...p.resources, ore: p.resources.ore - 1, wheat: p.resources.wheat - 1, sheep: p.resources.sheep - 1 },
+    devCards: [...p.devCards, { type: card, newlyBought: true }],
+  });
+  const bank = {
+    ...gameState.bank,
+    ore: gameState.bank.ore + 1, wheat: gameState.bank.wheat + 1, sheep: gameState.bank.sheep + 1,
+  };
+
+  // Log line is deliberately generic — the drawn card stays hidden.
+  const s = log({ ...gameState, players, bank, devCardDeck }, playerIndex,
+    `${gameState.players[playerIndex].name} bought a development card`);
+  // A Victory Point card can complete a win the instant it is drawn.
+  return recomputeVictory(s, playerIndex);
+}
+
+// Shared play-time guards. Returns an error string or null. Victory Point cards
+// are never "played", so `type` is only ever a playable action card here.
+function canPlayDevCard(gameState, playerIndex, type) {
+  if (gameState.winner !== null) return 'Game is over';
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.phase === 'setup') return 'Cannot play dev cards during setup';
+  if (gameState.robber) return 'Resolve the robber first';
+  if (gameState.roadBuilding) return 'Finish placing your free roads first';
+  if (gameState.devCardPlayedThisTurn) return 'You already played a dev card this turn';
+  if (!gameState.players[playerIndex].devCards.some(c => c.type === type && !c.newlyBought))
+    return `No playable ${DEV_CARD_LABEL[type]} card`;
+  return null;
+}
+
+// Remove one playable (not newly-bought) card of the given type from a hand.
+function removeOneCard(devCards, type) {
+  const idx = devCards.findIndex(c => c.type === type && !c.newlyBought);
+  return devCards.filter((_, i) => i !== idx);
+}
+
+// Knight: increment the knight count, recompute Largest Army, then hand off to
+// the existing robber move/steal flow — but with no discard step.
+export function playKnight(gameState, playerIndex) {
+  const err = canPlayDevCard(gameState, playerIndex, 'knight');
+  if (err) return err;
+
+  const name = gameState.players[playerIndex].name;
+  const players = gameState.players.map((p, i) => i !== playerIndex ? p : {
+    ...p, devCards: removeOneCard(p.devCards, 'knight'), knightsPlayed: (p.knightsPlayed || 0) + 1,
+  });
+  let s = log({ ...gameState, players, devCardPlayedThisTurn: true }, playerIndex, `${name} played a Knight`);
+
+  const largestArmy = recomputeLargestArmy(s);
+  if (largestArmy !== s.largestArmy) {
+    s = { ...s, largestArmy };
+    s = log(s, largestArmy, `${gameState.players[largestArmy].name} takes Largest Army (2 VP)`);
+  }
+
+  // Largest Army may itself be the 10th point — recompute win before the move.
+  s = recomputeVictory(s, playerIndex);
+  if (s.winner !== null) return s;
+
+  s = { ...s, robber: { stage: 'move' } };
+  return log(s, playerIndex, `${name} is moving the robber`);
+}
+
+// Road Building: place up to 2 free roads following normal placement rules.
+export function playRoadBuilding(gameState, playerIndex) {
+  const err = canPlayDevCard(gameState, playerIndex, 'roadBuilding');
+  if (err) return err;
+
+  const name = gameState.players[playerIndex].name;
+  const players = gameState.players.map((p, i) => i !== playerIndex ? p : {
+    ...p, devCards: removeOneCard(p.devCards, 'roadBuilding'),
+  });
+  let s = log({ ...gameState, players, devCardPlayedThisTurn: true }, playerIndex, `${name} played Road Building`);
+
+  if (!hasLegalRoad(s, playerIndex)) {
+    return log(s, playerIndex, `${name} has no legal roads to build`);
+  }
+  return { ...s, roadBuilding: { remaining: 2 } };
+}
+
+// Year of Plenty: take any 2 resources from the bank for free (capped by stock).
+export function playYearOfPlenty(gameState, playerIndex, picks) {
+  const err = canPlayDevCard(gameState, playerIndex, 'yearOfPlenty');
+  if (err) return err;
+  if (!Array.isArray(picks) || picks.length !== 2) return 'Pick exactly 2 resources';
+  if (picks.some(r => !RESOURCE_TYPES.includes(r))) return 'Unknown resource';
+
+  const bank = { ...gameState.bank };
+  const gained = {};
+  picks.forEach(r => { if (bank[r] > 0) { bank[r] -= 1; gained[r] = (gained[r] || 0) + 1; } });
+
+  const players = gameState.players.map((p, i) => {
+    if (i !== playerIndex) return p;
+    const resources = { ...p.resources };
+    Object.entries(gained).forEach(([r, n]) => { resources[r] += n; });
+    return { ...p, devCards: removeOneCard(p.devCards, 'yearOfPlenty'), resources };
+  });
+
+  const detail = Object.entries(gained).map(([r, n]) => `${n} ${r}`).join(', ') || 'nothing (bank empty)';
+  return log({ ...gameState, players, bank, devCardPlayedThisTurn: true }, playerIndex,
+    `${gameState.players[playerIndex].name} played Year of Plenty and took ${detail}`);
+}
+
+// Monopoly: every other player hands over all cards of the named resource.
+export function playMonopoly(gameState, playerIndex, resource) {
+  const err = canPlayDevCard(gameState, playerIndex, 'monopoly');
+  if (err) return err;
+  if (!RESOURCE_TYPES.includes(resource)) return 'Unknown resource';
+
+  let taken = 0;
+  gameState.players.forEach((p, i) => { if (i !== playerIndex) taken += p.resources[resource]; });
+  const players = gameState.players.map((p, i) => {
+    if (i === playerIndex) return {
+      ...p, devCards: removeOneCard(p.devCards, 'monopoly'),
+      resources: { ...p.resources, [resource]: p.resources[resource] + taken },
+    };
+    return { ...p, resources: { ...p.resources, [resource]: 0 } };
+  });
+
+  return log({ ...gameState, players, devCardPlayedThisTurn: true }, playerIndex,
+    `${gameState.players[playerIndex].name} played Monopoly on ${resource} and collected ${taken}`);
 }

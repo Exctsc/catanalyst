@@ -57,16 +57,29 @@ Pure functions; each returns a new game state or an error string. Imports graph 
 - **`collectResources(gameState, diceTotal)`** — for each player × building, looks up adjacent hexes via `VERTEX_TO_HEXES`, awards 1 resource per matching-number hex for settlements, 2 for cities. Hexes occupied by the robber (`gameState.robberHex`) produce nothing. Deducts from bank with `Math.min` guard. No-op on 7. Logs one `"X collected …"` line per player who gained anything.
 - **`placeSettlement(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, intersection unoccupied, no adjacent building (distance rule), sufficient resources outside setup. During setup, also enforces the 2-settlement limit and settlement-then-road ordering; the second setup settlement grants 1 resource per adjacent producing hex (bank-capped). Returns updated state or an error string.
 - **`placeRoad(gameState, playerIndex, edgeIndex)`** — validates: correct turn, edge within bounds, edge unoccupied, at least one endpoint in the player's network (settlements + cities + existing road endpoints). Deducts 1 brick + 1 wood outside setup. During setup, the road must touch the settlement just placed; placing it completes the setup turn and advances the snake order (or transitions to `phase: 'play'` with player 1 after all 8 turns). Returns updated state or error string.
+- **`placeRoad`** also handles **free roads**: while `gameState.roadBuilding` is active (a played Road Building card) the brick+wood cost is skipped and `roadBuilding.remaining` decrements, clearing when spent or when no legal spot remains.
 - **`upgradeToCity(gameState, playerIndex, intersectionIndex)`** — validates: correct turn, not setup phase, the player has a settlement at that intersection, 2 wheat + 3 ore available. Moves the settlement into `cities`, deducts resources to the bank. Returns updated state or error string.
 - **`bankTrade(gameState, playerIndex, give, receive)`** — 4:1 trade with the bank. Validates: correct turn, play phase, two different known resources, player holds ≥4 of `give`, bank holds ≥1 of `receive`. Usable any time on the player's turn (before or after rolling).
 - **`startRobber(gameState)`** — called when a 7 is rolled. Players holding >7 cards enter `robber: { stage: 'discard', pending, required }` (required = `floor(total/2)`, computed at roll time); otherwise straight to `{ stage: 'move' }`.
 - **`discardCards(gameState, playerIndex, discards)`** — validates the player is pending, holds the named cards, and the discard totals exactly their required count; returns cards to the bank. Last pending discard advances to `{ stage: 'move' }`.
 - **`moveRobber(gameState, playerIndex, hexIndex)`** — current player only, `stage: 'move'` only, must pick a *different* hex. Sets `robberHex`; if any opponent with ≥1 card has a settlement/city on that hex, advances to `{ stage: 'steal', candidates }`, otherwise resolution completes (`robber: null`).
 - **`stealResource(gameState, playerIndex, victimIndex)`** — takes 1 uniformly-random card from a candidate victim and completes resolution. Opponents with zero cards never appear as candidates, so "no cards → no steal" holds.
-- `updateVictory(gameState, playerIndex)` (internal) — recomputes that player's `victoryPoints` (1 per settlement, 2 per city) and sets `winner` at ≥10. Called at the end of `placeSettlement` and `upgradeToCity`.
+
+Development cards (all reject during setup / robber / road-building / after a win):
+- **`buyDevCard(gameState, playerIndex)`** — costs 1 ore + 1 wheat + 1 sheep, draws the top of `devCardDeck` into the hand as `{ type, newlyBought: true }`. Fails on empty deck or insufficient resources. Multiple buys per turn allowed. The log line is generic ("bought a development card") so the drawn card stays hidden. Recomputes VP (a drawn VP card can win instantly).
+- **`playKnight`** — removes one playable knight, increments `knightsPlayed`, recomputes Largest Army, then hands off to the existing robber flow at `{ stage: 'move' }` (no discard step). If Largest Army makes it the 10th point, the win is declared and the robber move is skipped.
+- **`playRoadBuilding`** — sets `roadBuilding: { remaining: 2 }` (or consumes the card with a log note if the player has no legal road spot). Placement then goes through the free-road branch of `placeRoad`.
+- **`playYearOfPlenty(gameState, playerIndex, [r1, r2])`** — grants 2 chosen resources from the bank, each capped by stock (same or different types).
+- **`playMonopoly(gameState, playerIndex, resource)`** — every other player hands over all cards of the named resource.
+- `canPlayDevCard` / `removeOneCard` (internal) — shared play guards (turn, one-per-turn via `devCardPlayedThisTurn`, not newly bought) and hand mutation.
+- `publicVP` / `vpCardCount` / `recomputeVictory(gameState, actingPlayerIndex)` (internal) — **public VP** = 1/settlement + 2/city + 2 for each award held; this is what every player's `victoryPoints` field (and the shared UI) shows. The **win check** adds hidden Victory Point dev cards on top of the public total, so VP cards count toward the owner's own 10 without being publicly visible.
+- `recomputeLargestArmy` (internal) — holder needs 3+ knights and strictly more than the current holder; ties keep it with the holder.
+- `longestRoadLength(gameState, playerIndex)` (exported) — longest continuous road as a DFS over the player's road edges (`EDGES`): the longest **trail** (no road segment reused) that cannot pass *through* a vertex occupied by an opponent's settlement/city (own buildings never block). `recomputeLongestRoad` applies the 5+ / strictly-longer / ties-keep-holder rules and also strips the holder if their chain drops below 5.
+- `finalizeBuild(gameState, playerIndex)` (internal) — recompute Longest Road (a new road *or* a road-severing settlement can change it), log any handover, then `recomputeVictory`. Called at the end of `placeSettlement`, `placeRoad`, and `upgradeToCity`.
+- `isLegalRoad` / `hasLegalRoad` (internal) — free-standing legality check used by Road Building.
 - `setupPlayerFor(turnIndex)` (internal) — maps setup turn 0–7 to the snake order 1,2,3,4,4,3,2,1.
 
-Guards: all placement/trade actions return `'Game is over'` once `winner` is set, and `'Resolve the robber first'` while `robber` is non-null. Every mutating action also appends a log entry via `log()` (settlement/road/city build, starting-resource grant, trade, roll, collection, discard, robber move, steal, turn change, win).
+Guards: all placement/trade/dev-card actions return `'Game is over'` once `winner` is set, and `'Resolve the robber first'` while `robber` is non-null. Every mutating action also appends a log entry via `log()` (build, starting-resource grant, trade, roll, collection, discard, robber move, steal, dev-card buy/play, army/road handover, turn change, win).
 
 *Note:* `HEX_TILES` and `HEX_NUMBERS` are duplicated here from `HexBoard.jsx` and kept in sync manually.
 
@@ -77,18 +90,20 @@ Exports a single `initialGameState` object representing a fresh 4-player game.
 
 | Field | Value |
 |---|---|
-| `players` | 4 players, all starting empty (test settlements removed — the setup phase now places real ones) |
+| `players` | 4 players, all starting empty. Each has `resources`, `settlements`, `roads`, `cities`, `devCards` (`{ type, newlyBought }`), `knightsPlayed` (0), `victoryPoints` (public VP) |
 | `currentPlayerIndex` | `0` |
 | `phase` | `"setup"` |
 | `setup` | `{ turnIndex: 0, settlementsPlaced: [0,0,0,0], roadsPlaced: [0,0,0,0], expecting: 'settlement', lastSettlementIndex: null }` — set to `null` when setup completes |
 | `dice` | `null` — holds the `rollDice()` result for the current turn once rolled; cleared by End Turn (this is the once-per-turn roll lock) |
 | `robberHex` | `9` (desert) |
-| `robber` | `null` — non-null while a rolled 7 is being resolved: `{ stage: 'discard', pending, required }` → `{ stage: 'move' }` → `{ stage: 'steal', candidates }` → `null` |
+| `robber` | `null` — non-null while a rolled 7 (or a played Knight) is being resolved: `{ stage: 'discard', pending, required }` → `{ stage: 'move' }` → `{ stage: 'steal', candidates }` → `null` |
 | `bank` | all 5 resources at 19 |
-| `devCardDeck` | 25 cards, Fisher-Yates shuffled at load (14 knight, 5 VP, 2 road building, 2 year of plenty, 2 monopoly) |
-| `longestRoad` | `null` |
-| `largestArmy` | `null` |
-| `winner` | `null` — set to the winning player's index at 10 VP; every action rejects once set |
+| `devCardDeck` | 25 cards, Fisher-Yates shuffled at load (14 knight, 5 VP, 2 road building, 2 year of plenty, 2 monopoly). Players draw from the end (top) |
+| `devCardPlayedThisTurn` | `false` — at most one dev card may be *played* per turn; reset by `endTurn` |
+| `roadBuilding` | `null` — `{ remaining: 1\|2 }` while placing free roads from a played Road Building card |
+| `longestRoad` | `null` — holder index (needs a 5+ chain) |
+| `largestArmy` | `null` — holder index (needs 3+ knights) |
+| `winner` | `null` — set to the winning player's index at 10 VP (public VP + hidden VP cards); every action rejects once set |
 | `log` | `[{ id, playerIndex, text }]` — append-only event log, seeded with one system line. `playerIndex: null` marks a system entry; otherwise it tags/colours the entry by acting player |
 | `turn` | `1` |
 
@@ -100,24 +115,25 @@ Top-level UI, restructured this session into a Colonist.io-style product layout 
 Layout regions inside `.g-app` (flex column, full-height):
 - **Header** (`.g-header`) — brand, whose turn (in their colour), phase + turn number, and a right-aligned status chip. The chip mirrors robber/discard/steal state (alert-styled) or the setup prompt.
 - **Body** (`.g-body`, flex row): **center** (`.g-center`) holds the `HexBoard` (now sized to its container rather than forcing `100vh`), the error toast, and the win overlay; **right sidebar** (`.g-sidebar`) stacks a **player list** and a **tabbed panel**.
-- **Bottom tray** (`.g-tray`) — the current player's five resource cards as coloured chips with counts, then a right-aligned action group: dice readout, Roll Dice (primary), Trade, Build, End Turn, plus the contextual robber `DiscardPanel` / steal buttons. Trade and Build open small popovers; Build's popover lists costs and reminds that building is done by clicking the board (unchanged interaction).
-- Handlers unchanged in behaviour; a shared `apply(result)` commits state or surfaces the error string as a toast. `handleRoll`/`handleEndTurn` call the new `performRoll`/`endTurn` transitions inside a functional `setGameState` (still atomic against rapid clicks). All the placement/trade/robber wiring is identical to before — this was a layout pass, not a logic change.
+- **Bottom tray** (`.g-tray`) — the current player's five resource cards as coloured chips, then their **own dev card hand** (`DevHand`), then a right-aligned action group: dice readout, Roll Dice (primary), Trade, Build, **Buy Dev (deck count)**, End Turn, plus the contextual robber `DiscardPanel` / steal buttons, the Year of Plenty / Monopoly resource-pick popovers, and the Road Building "place N free roads" banner (with a Skip that forfeits remaining free roads). Trade/Build/dev popovers are mutually exclusive.
+- A shared `apply(result)` commits state or surfaces the error string as a toast; `handleRoll`/`handleEndTurn` call `performRoll`/`endTurn` inside a functional `setGameState` (atomic against rapid clicks). Playing a Knight or Road Building routes through the existing robber / free-road board interactions.
 
-Components in this file: `ResourceChip`, `DiscardPanel` (restyled), `PlayerList`, `GameLog`, `Chat`.
+Components in this file: `ResourceChip`, `DiscardPanel`, `PlayerList`, `DevHand`, `GameLog`, `Chat`.
 
-- **`PlayerList`** — one row per player: colour swatch, name, resource-card count, VP; the current player's row is highlighted.
+- **`PlayerList`** — one row per player: colour swatch, name, **Largest Army (⚔️) / Longest Road (🛣️) badges** on the holder, resource-card count, and public VP; the current player's row is highlighted. Deliberately shows only *public* VP — hidden Victory Point dev cards never appear here.
+- **`DevHand`** — the current player's own dev cards grouped by type with counts. Playable action cards (Knight / Road Building / Year of Plenty / Monopoly) get a Play button, disabled when a card was already played this turn or the copy is newly bought; Victory Point cards show a `+VP` tag and are never playable. Only ever renders the current player's hand, so opponents' cards stay private.
 - **`GameLog`** — renders `gameState.log` newest-at-bottom, each entry left-bordered in the acting player's colour (system lines italic/dim), auto-scrolling to the newest entry via a `useEffect` on `log.length`.
 - **`Chat`** — local-only message list + input (author = current player, colour-coded). **UI only: there is no backend, messages never leave the browser.** Marked with `// TODO: wire to Socket.io once multiplayer backend exists` in `handleSendChat`.
 
 ---
 
 ### `src/game.css`
-Cohesive dark product theme for the game screen (imported by `App.jsx`). Defines CSS variables for panels/borders/text/accent and the five resource colours, overrides the Vite scaffold's `#root` constraints (fixed width / centered text) so the app fills the viewport, and styles every region above (`.g-header`, `.g-body`, `.g-sidebar`, `.g-players`, `.g-tabs`, `.g-log`, `.g-chat`, `.g-tray`, `.g-card`, `.g-btn`, popovers, discard/steal rows, win overlay).
+Cohesive dark product theme for the game screen (imported by `App.jsx`). Defines CSS variables for panels/borders/text/accent and the five resource colours, overrides the Vite scaffold's `#root` constraints (fixed width / centered text) so the app fills the viewport, and styles every region (`.g-header`, `.g-body`, `.g-sidebar`, `.g-players` + award `.g-badge`, `.g-tabs`, `.g-log`, `.g-chat`, `.g-tray`, `.g-card`, `.g-devhand`/`.g-devcard`, `.g-btn`, popovers, discard/steal rows, win overlay).
 
 ---
 
 ### `tests/`
-Node test suites over the pure game modules (`npm test` runs them all; each exits non-zero on failure): `roads`, `setup`, `cities`, `trade`, `robber`, `win`, `log` — 152 assertions total. The `log` suite covers the seed entry, per-action entries, sequential ids, player tagging, and the `performRoll`/`endTurn` transitions.
+Node test suites over the pure game modules (`npm test` runs them all; each exits non-zero on failure): `roads`, `setup`, `cities`, `trade`, `robber`, `win`, `log`, `devcards`, `largestarmy`, `longestroad` — **214 assertions total**. Highlights: `devcards` covers buy/draw/cost, newly-bought lockout, one-per-turn, each card effect, and the hidden-VP win path; `largestarmy` covers the 3-knight threshold and strict-exceed / tie handoff; `longestroad` covers straight chains, branch (longest-trail, not total segments), opponent-settlement breaks, own-settlement no-break, and the 5+/tie/transfer award rules.
 
 ---
 
@@ -149,22 +165,23 @@ Node test suites over the pure game modules (`npm test` runs them all; each exit
 - [x] Robber: discard-half (rounded down) for every player over 7 cards, prompted individually with exact-count enforcement
 - [x] Robber: current player moves it to a different hex by clicking the board; marker rendered; robbed hex produces nothing
 - [x] Robber: steal 1 random card from a chosen adjacent opponent (cardless opponents excluded; none adjacent → no steal)
-- [x] Victory points (1/settlement, 2/city) tracked live
-- [x] Win at 10 VP: overlay banner in winner's colour, all rolls/trades/placements locked out
+- [x] Victory points tracked live: public VP = 1/settlement + 2/city + 2 per award; the win check also adds hidden VP dev cards
+- [x] Win at 10 VP: overlay banner in winner's colour, all rolls/trades/placements/dev-cards locked out
 - [x] Action log: every meaningful action produces a human-readable, player-coloured entry via one shared `log()` helper; rendered in a scrollable, auto-scrolling sidebar panel and persisted in `gameState.log`
-- [x] Restructured game screen: header (turn/phase/status) · center board · right sidebar (player list + Game Log/Chat tabs) · bottom tray (resource hand + Roll/Trade/Build/End Turn), styled cohesively via `game.css`
+- [x] Restructured game screen: header (turn/phase/status) · center board · right sidebar (player list + Game Log/Chat tabs) · bottom tray (resource hand + dev card hand + Roll/Trade/Build/Buy Dev/End Turn), styled cohesively via `game.css`
 - [x] Chat tab — local-only placeholder UI (message list + input), **pending the Socket.io backend**
-- [x] Node test suites in `tests/` (`npm test`): 152 assertions across roads/setup/cities/trade/robber/win/log
+- [x] Development cards: buy (1 ore + 1 wheat + 1 sheep) drawing from a shuffled pile; one play per turn; no play the turn a card is bought; Knight (robber move, no discard), Road Building (2 free roads), Year of Plenty (2 free from bank), Monopoly (take all of a type), Victory Point (hidden, auto-counted)
+- [x] Largest Army: 3+ knights and strictly more than the holder → 2 VP, ⚔️ badge in the sidebar
+- [x] Longest Road: real graph traversal for the longest 5+ chain (breaks at opponent buildings) → 2 VP, 🛣️ badge; recomputed after every road/settlement placement
+- [x] Node test suites in `tests/` (`npm test`): 214 assertions across roads/setup/cities/trade/robber/win/log/devcards/largestarmy/longestroad
 
 ---
 
 ## Not Yet Built
 
-- [ ] Dev card drawing, playing, and effects (deck is shuffled and stored; no UI exists)
-- [ ] Longest Road award (tracked as `null`, never computed; no VP source beyond settlements/cities yet)
-- [ ] Largest Army award (tracked as `null`, never computed)
 - [ ] Turn counter incrementing (`turn` field always stays at 1)
 - [ ] Port trades (2:1/3:1 port labels are rendered but confer no trading benefit) and player-to-player trades
+- [ ] Building-supply limits (5 settlements / 4 cities / 15 roads per player are not enforced)
 - [ ] **Multiplayer chat** — the Chat tab is local-only UI; it needs the Socket.io backend to actually send/receive between clients (marked with a `// TODO: wire to Socket.io` in `App.jsx`)
 
 ---
@@ -191,6 +208,12 @@ Node test suites over the pure game modules (`npm test` runs them all; each exit
 
 10. **Log grows unbounded.** `gameState.log` is append-only with no cap; a very long game accumulates entries indefinitely (fine for a session, but no trimming/virtualisation yet).
 
-*Fixed since last update:* nothing regressed; this was a UI/layout pass. Existing behaviour (dice lock, robber flow, win lockout) preserved and re-verified in-browser through the new layout.
+11. **Hidden VP dev cards aren't truly hidden (hotseat).** Victory Point dev cards are kept out of the public `victoryPoints` field and the sidebar, and only count toward the owner's own win check — but the shared-screen model still shows the current player's whole hand in the tray, and a player reaching 10 via VP cards is announced by the win banner. True hidden-hand enforcement (each player only sees their own cards, opponents can't infer VP totals) needs the Socket.io backend with per-client state; this is a placeholder until then, and shares the root cause of issue #7. *Assumption:* the win check counts VP cards immediately on draw, so a purchased VP card can end the game the instant it completes 10 points.
 
-*Assumptions made this session:* the roll and end-turn flows were extracted into `performRoll`/`endTurn` action functions (so the log lives with the other actions rather than in `App`) — behaviour is unchanged and still atomic against rapid clicks; the "Build" tray button opens an informational cost popover rather than a build mode, since building remains board-click driven; chat author is always the current player on the shared hotseat screen; the sidebar is a fixed 320px and the layout targets a normal desktop window (no mobile/responsive pass).
+12. **Road Building "Skip" forfeits free roads.** If a player plays Road Building and can't or doesn't want to place both roads, the Skip button (and End Turn) clears `roadBuilding` and the unused free road is lost. Standard Catan would require placing all legal free roads; this is a forgiving simplification to avoid soft-locks.
+
+13. **Longest-road search is exponential in the worst case.** `longestRoadLength` is an exact DFS over road trails. Fine for a real board (each player ≤ 15 roads), but a pathological dense subgraph would be slow; no memoisation/pruning beyond the visited-edge set.
+
+*Fixed since last update:* nothing regressed; the VP calculation was extended (settlements/cities → + VP cards + awards) and `updateVictory` replaced by `recomputeVictory`/`finalizeBuild`, but all prior suites still pass. `placeSettlement`/`placeRoad`/`upgradeToCity` now recompute Longest Road on every build (a settlement can sever an opponent's chain), which also fixes the fact that awards previously never moved.
+
+*Assumptions made this session:* the deck keeps the standard 25-card split (2 Monopoly, not the "1 Monopoly" in the request, which would total 24 and contradict "25-card deck"); a played Knight reuses the `robber` state machine straight at `stage: 'move'` (no discard); Knight's Largest Army recompute happens before the robber moves, so an army-driven win skips the move; Year of Plenty and Monopoly collect their resource choice through a tray popover before the action fires; hidden VP cards count toward the win immediately on draw (see known issue #11); the Longest Road tie/handoff rule also strips a holder whose chain drops below 5.

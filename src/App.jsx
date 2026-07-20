@@ -3,6 +3,7 @@ import initialGameState from './game/gameState'
 import {
   performRoll, endTurn, placeSettlement, placeRoad, upgradeToCity,
   bankTrade, discardCards, moveRobber, stealResource,
+  buyDevCard, playKnight, playRoadBuilding, playYearOfPlenty, playMonopoly,
 } from './game/gameActions'
 import HexBoard from './components/HexBoard'
 import './game.css'
@@ -13,6 +14,17 @@ const RESOURCES = ['brick', 'wood', 'ore', 'wheat', 'sheep']
 const RESOURCE_COLOR = {
   brick: '#c1440e', wood: '#228b22', ore: '#8c8c8c', wheat: '#e8b923', sheep: '#7dc855',
 }
+
+// Dev card display metadata. `playable: false` cards (Victory Point) are never
+// actively played — they count silently toward the owner's own win total.
+const DEV_META = {
+  knight:       { label: 'Knight',        icon: '⚔️', playable: true },
+  roadBuilding: { label: 'Road Building', icon: '🛣️', playable: true },
+  yearOfPlenty: { label: 'Year of Plenty', icon: '🌾', playable: true },
+  monopoly:     { label: 'Monopoly',      icon: '📈', playable: true },
+  victoryPoint: { label: 'Victory Point', icon: '🏆', playable: false },
+}
+const DEV_ORDER = ['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly', 'victoryPoint']
 
 function ResourceChip({ resource, size = 16 }) {
   return (
@@ -48,7 +60,7 @@ function DiscardPanel({ player, required, onConfirm }) {
   )
 }
 
-function PlayerList({ players, currentPlayerIndex }) {
+function PlayerList({ players, currentPlayerIndex, largestArmy, longestRoad }) {
   return (
     <div className="g-players">
       {players.map((p, i) => {
@@ -57,8 +69,41 @@ function PlayerList({ players, currentPlayerIndex }) {
           <div key={p.id} className={`g-player${i === currentPlayerIndex ? ' g-player-active' : ''}`}>
             <span className="g-swatch" style={{ background: p.colour }} />
             <span className="g-pname">{p.name}</span>
+            {largestArmy === i && <span className="g-badge" title="Largest Army">⚔️</span>}
+            {longestRoad === i && <span className="g-badge" title="Longest Road">🛣️</span>}
             <span className="g-pstat" title="resource cards">🃏 {cards}</span>
             <span className="g-pvp" title="victory points">{p.victoryPoints} VP</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// The current player's own development cards. Only ever shows the player whose
+// turn it is — other players' hands (including hidden VP cards) stay private.
+function DevHand({ player, canPlay, onPlay }) {
+  const counts = {}
+  const newlyByType = {}
+  player.devCards.forEach(c => {
+    counts[c.type] = (counts[c.type] || 0) + 1
+    if (c.newlyBought) newlyByType[c.type] = (newlyByType[c.type] || 0) + 1
+  })
+  const types = DEV_ORDER.filter(t => counts[t])
+  if (types.length === 0) return <div className="g-devhand g-devhand-empty">No dev cards</div>
+  return (
+    <div className="g-devhand">
+      {types.map(t => {
+        const meta = DEV_META[t]
+        const playableNow = meta.playable && canPlay && counts[t] - (newlyByType[t] || 0) > 0
+        return (
+          <div key={t} className="g-devcard" title={meta.label}>
+            <span className="g-devcard-icon">{meta.icon}</span>
+            <span className="g-devcard-count">{counts[t]}</span>
+            <span className="g-devcard-label">{meta.label}</span>
+            {meta.playable
+              ? <button className="g-devcard-play" disabled={!playableNow} onClick={() => onPlay(t)}>Play</button>
+              : <span className="g-devcard-vp">+VP</span>}
           </div>
         )
       })}
@@ -137,11 +182,16 @@ export default function App() {
   const [tab, setTab] = useState('log')
   const [tradeOpen, setTradeOpen] = useState(false)
   const [buildOpen, setBuildOpen] = useState(false)
+  const [devPanel, setDevPanel] = useState(null) // null | 'yearOfPlenty' | 'monopoly'
+  const [yopA, setYopA] = useState('brick')
+  const [yopB, setYopB] = useState('wood')
+  const [monoPick, setMonoPick] = useState('brick')
   const [chatMessages, setChatMessages] = useState([])
 
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const isSetup = gameState.phase === 'setup'
   const robber = gameState.robber
+  const roadBuilding = gameState.roadBuilding
   const winner = gameState.winner !== null ? gameState.players[gameState.winner] : null
 
   const placements = gameState.players.flatMap(player =>
@@ -154,12 +204,13 @@ export default function App() {
     player.cities.map(c => ({ intersectionIndex: c.intersectionIndex, colour: player.colour }))
   )
 
-  // Every board/action handler runs a pure action, then either shows its error
-  // string as a transient toast or commits the returned state.
+  // Runs a pure action, then either shows its error string as a transient toast
+  // or commits the returned state. Returns whether it succeeded.
   function apply(result) {
-    if (typeof result === 'string') { setMessage(result); return }
+    if (typeof result === 'string') { setMessage(result); return false }
     setGameState(result)
     setMessage(null)
+    return true
   }
 
   function handleRoll() {
@@ -194,10 +245,29 @@ export default function App() {
     apply(stealResource(gameState, gameState.currentPlayerIndex, victimIndex))
   }
 
+  function handleBuyDev() {
+    apply(buyDevCard(gameState, gameState.currentPlayerIndex))
+  }
+
+  function handlePlayDev(type) {
+    if (type === 'knight') { apply(playKnight(gameState, gameState.currentPlayerIndex)); return }
+    if (type === 'roadBuilding') { apply(playRoadBuilding(gameState, gameState.currentPlayerIndex)); return }
+    setDevPanel(type) // yearOfPlenty / monopoly need a resource choice first
+  }
+
+  function handlePlayYearOfPlenty() {
+    if (apply(playYearOfPlenty(gameState, gameState.currentPlayerIndex, [yopA, yopB]))) setDevPanel(null)
+  }
+
+  function handlePlayMonopoly() {
+    if (apply(playMonopoly(gameState, gameState.currentPlayerIndex, monoPick))) setDevPanel(null)
+  }
+
   function handleEndTurn() {
     setMessage(null)
     setTradeOpen(false)
     setBuildOpen(false)
+    setDevPanel(null)
     setGameState(prev => endTurn(prev))
   }
 
@@ -208,7 +278,7 @@ export default function App() {
     setChatMessages(prev => [...prev, { author: currentPlayer.name, colour: currentPlayer.colour, text }])
   }
 
-  // Header status chip: reflects robber/discard state or the setup prompt.
+  // Header status chip: reflects robber/discard/road-building state or the setup prompt.
   let status = null
   let statusAlert = false
   if (robber?.stage === 'discard') {
@@ -221,12 +291,18 @@ export default function App() {
   } else if (robber?.stage === 'steal') {
     status = `${currentPlayer.name}: choose who to rob`
     statusAlert = true
+  } else if (roadBuilding) {
+    status = `${currentPlayer.name}: place ${roadBuilding.remaining} free road${roadBuilding.remaining > 1 ? 's' : ''}`
+    statusAlert = true
   } else if (isSetup) {
     status = `Place a ${gameState.setup.expecting}`
   }
 
-  const canRoll = !isSetup && gameState.dice === null && winner === null && !robber
-  const canEndTurn = !isSetup && !robber && winner === null
+  const canRoll = !isSetup && gameState.dice === null && winner === null && !robber && !roadBuilding
+  const canEndTurn = !isSetup && !robber && !roadBuilding && winner === null
+  const canBuyDev = !isSetup && !robber && !roadBuilding && winner === null
+  const canPlayDev = gameState.phase === 'play' && !gameState.devCardPlayedThisTurn && !robber && !roadBuilding && winner === null
+  const showActions = !robber && !winner && !roadBuilding
 
   return (
     <div className="g-app">
@@ -259,7 +335,12 @@ export default function App() {
         </main>
 
         <aside className="g-sidebar">
-          <PlayerList players={gameState.players} currentPlayerIndex={gameState.currentPlayerIndex} />
+          <PlayerList
+            players={gameState.players}
+            currentPlayerIndex={gameState.currentPlayerIndex}
+            largestArmy={gameState.largestArmy}
+            longestRoad={gameState.longestRoad}
+          />
           <div className="g-tabs">
             <div className="g-tabbar">
               <button className={`g-tab${tab === 'log' ? ' g-tab-active' : ''}`} onClick={() => setTab('log')}>
@@ -286,6 +367,8 @@ export default function App() {
             </div>
           ))}
         </div>
+
+        {!isSetup && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
 
         <div className="g-actions">
           {gameState.dice && (
@@ -320,7 +403,42 @@ export default function App() {
             </div>
           )}
 
-          {tradeOpen && !isSetup && !robber && !winner && (
+          {roadBuilding && (
+            <div className="g-modal-row">
+              <strong style={{ color: currentPlayer.colour }}>
+                Place {roadBuilding.remaining} free road{roadBuilding.remaining > 1 ? 's' : ''}
+              </strong>
+              <span style={{ color: 'var(--g-text-dim)' }}>— click a road slot on the board</span>
+              <button className="g-btn" onClick={() => setGameState(prev => ({ ...prev, roadBuilding: null }))}>Skip</button>
+            </div>
+          )}
+
+          {devPanel === 'yearOfPlenty' && showActions && (
+            <div className="g-popover">
+              <span>Year of Plenty — take 2:</span>
+              <select value={yopA} onChange={e => setYopA(e.target.value)}>
+                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select value={yopB} onChange={e => setYopB(e.target.value)}>
+                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <button className="g-btn g-btn-primary" onClick={handlePlayYearOfPlenty}>Take</button>
+              <button className="g-btn" onClick={() => setDevPanel(null)}>Cancel</button>
+            </div>
+          )}
+
+          {devPanel === 'monopoly' && showActions && (
+            <div className="g-popover">
+              <span>Monopoly — name a resource:</span>
+              <select value={monoPick} onChange={e => setMonoPick(e.target.value)}>
+                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <button className="g-btn g-btn-primary" onClick={handlePlayMonopoly}>Claim all</button>
+              <button className="g-btn" onClick={() => setDevPanel(null)}>Cancel</button>
+            </div>
+          )}
+
+          {tradeOpen && showActions && (
             <div className="g-popover">
               <span>Give 4</span>
               <select value={tradeGive} onChange={e => setTradeGive(e.target.value)}>
@@ -334,18 +452,19 @@ export default function App() {
             </div>
           )}
 
-          {buildOpen && !isSetup && (
+          {buildOpen && showActions && (
             <div className="g-popover">
-              <span>Road: 1 brick + 1 wood · Settlement: brick+wood+wheat+sheep · City: 2 wheat + 3 ore.</span>
+              <span>Road: 1 brick + 1 wood · Settlement: brick+wood+wheat+sheep · City: 2 wheat + 3 ore · Dev card: ore+wheat+sheep.</span>
               <span style={{ color: 'var(--g-text-dim)' }}>Click the board to build.</span>
             </div>
           )}
 
-          {!robber && !winner && (
+          {showActions && (
             <>
               <button className="g-btn g-btn-primary" onClick={handleRoll} disabled={!canRoll}>Roll Dice</button>
-              <button className="g-btn" onClick={() => { setTradeOpen(o => !o); setBuildOpen(false) }} disabled={isSetup}>Trade</button>
-              <button className="g-btn" onClick={() => { setBuildOpen(o => !o); setTradeOpen(false) }} disabled={isSetup}>Build</button>
+              <button className="g-btn" onClick={() => { setTradeOpen(o => !o); setBuildOpen(false); setDevPanel(null) }} disabled={isSetup}>Trade</button>
+              <button className="g-btn" onClick={() => { setBuildOpen(o => !o); setTradeOpen(false); setDevPanel(null) }} disabled={isSetup}>Build</button>
+              <button className="g-btn" onClick={handleBuyDev} disabled={!canBuyDev}>Buy Dev ({gameState.devCardDeck.length})</button>
               <button className="g-btn" onClick={handleEndTurn} disabled={!canEndTurn}>End Turn</button>
             </>
           )}

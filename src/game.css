@@ -183,6 +183,10 @@
   min-width: 34px;
   text-align: right;
 }
+.g-player .g-badge {
+  font-size: 13px;
+  line-height: 1;
+}
 
 /* ---------- Tabs (log / chat) ---------- */
 .g-tabs {
@@ -326,6 +330,68 @@
   color: var(--g-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.3px;
+}
+
+/* ---------- Dev card hand ---------- */
+.g-devhand {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.g-devhand-empty {
+  color: var(--g-text-dim);
+  font-size: 12px;
+  font-style: italic;
+  align-self: center;
+}
+.g-devcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 58px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: var(--g-panel-2);
+  border: 1px solid var(--g-border);
+}
+.g-devcard-icon {
+  font-size: 16px;
+  line-height: 1.1;
+}
+.g-devcard-count {
+  font-size: 14px;
+  font-weight: 700;
+}
+.g-devcard-label {
+  font-size: 8.5px;
+  color: var(--g-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+  text-align: center;
+}
+.g-devcard-play {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--g-accent);
+  background: var(--g-accent);
+  color: #1a1400;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.g-devcard-play:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: var(--g-panel);
+  border-color: var(--g-border);
+  color: var(--g-text-dim);
+}
+.g-devcard-vp {
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--g-accent);
+  font-weight: 700;
 }
 
 .g-actions {
