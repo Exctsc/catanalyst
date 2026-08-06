@@ -1,6 +1,7 @@
 import {
   MIN_ZOOM, MAX_ZOOM, MIN_VISIBLE, DEFAULT_VIEW,
   clampZoom, clampPan, clampView, zoomAt, zoomFactorFromWheel, fitZoom, distance, midpoint,
+  DRAG_THRESHOLD, exceedsDragThreshold,
 } from '../src/game/viewport.js';
 import { BOARD_WIDTH, BOARD_HEIGHT } from '../src/game/gameRules.js';
 
@@ -194,6 +195,19 @@ check('a widening pinch produces a >1 zoom ratio', (() => {
   const after = distance({ x: 60, y: 300 }, { x: 260, y: 300 });
   return after / before === 2;
 })());
+
+// --- Drag threshold: anything below it MUST stay a click ---
+// Regression: at 5px a real press-and-release on a trackpad crossed the
+// threshold, so the board treated an ordinary click as a pan and swallowed it
+// silently — settlements could not be placed at all.
+check('a perfectly still press is a click', !exceedsDragThreshold(0, 0));
+check('2px of drift is a click', !exceedsDragThreshold(2, 0));
+check('8.5px of trackpad jitter is still a click', !exceedsDragThreshold(6, 6));
+check('10px diagonal drift is still a click', !exceedsDragThreshold(7, 7));
+check('threshold tolerates more than a mouse-sized 5px slip', DRAG_THRESHOLD > 5);
+check('a deliberate 40px pan is a pan', exceedsDragThreshold(40, 0));
+check('a deliberate vertical pan is a pan', exceedsDragThreshold(0, -40));
+check('the threshold itself counts as a pan', exceedsDragThreshold(DRAG_THRESHOLD, 0));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

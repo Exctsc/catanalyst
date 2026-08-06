@@ -94,6 +94,17 @@ export function fitZoom(viewport, content) {
   return clampZoom(Math.min(1, viewport.w / content.w, viewport.h / content.h));
 }
 
+// How far a press has to travel before it counts as a pan rather than a click.
+// This is hand-jitter tolerance, not a UI preference: a press on a trackpad
+// routinely drifts well past the ~5px a mouse does, and every pixel of drift
+// under this limit still has to place a settlement. Panning is a gesture of
+// tens of pixels, so a generous limit costs nothing on that side.
+export const DRAG_THRESHOLD = 12;
+
+export function exceedsDragThreshold(dx, dy) {
+  return Math.hypot(dx, dy) >= DRAG_THRESHOLD;
+}
+
 export function distance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }

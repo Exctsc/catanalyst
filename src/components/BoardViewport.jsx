@@ -2,15 +2,11 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import {
   MIN_ZOOM, MAX_ZOOM,
   clampPan, clampView, fitZoom, zoomAt, zoomFactorFromWheel, distance, midpoint,
+  exceedsDragThreshold,
 } from '../game/viewport.js';
 
 // Zoom applied per click of the +/- buttons.
 const BUTTON_STEP = 1.25;
-
-// A press has to travel this far before it counts as a pan. Below the
-// threshold it stays a click, so tapping a road slot or an intersection still
-// works even if the pointer drifts a pixel or two.
-const DRAG_THRESHOLD = 5;
 
 /**
  * Pan/zoom frame for the board.
@@ -113,6 +109,24 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
     return () => frame.removeEventListener('click', onClickCapture, true);
   }, []);
 
+  // Capture keeps a drag alive if the pointer leaves the frame, but it must not
+  // be taken on pointerdown: while it is held the browser retargets pointerup —
+  // and with it the compatibility mouseup — to the capturing frame. `click` is
+  // then dispatched on the nearest common ancestor of the mousedown and mouseup
+  // targets, i.e. the frame, so an intersection's own onClick never runs. Any
+  // real press drifts a pixel or two, so capturing up front broke every click.
+  // Taking it only once a gesture is a confirmed pan leaves ordinary clicks
+  // untouched and still holds the pointer for the drags that need it.
+  function capturePointer(event) {
+    try {
+      // Throws for an unrecognised pointer id, which must not take the gesture
+      // down with it; the drag still works while the pointer stays over the frame.
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Non-fatal.
+    }
+  }
+
   function localPoint(event) {
     const rect = frameRef.current.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -122,21 +136,19 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
   // pointer pans, two pointers pinch (tracking the distance between them).
   function handlePointerDown(event) {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
+    // A new press is always a fresh gesture. Without this, a suppression left
+    // over from a gesture that ended without dispatching a click (pointer
+    // released outside the window) would silently eat the next real click.
+    suppressClickRef.current = false;
     const point = localPoint(event);
     pointersRef.current.set(event.pointerId, point);
-    // Capture keeps a drag alive if the pointer leaves the frame. It throws for
-    // an unrecognised pointer id, which must not take the gesture down with it.
-    try {
-      event.currentTarget.setPointerCapture?.(event.pointerId);
-    } catch {
-      // Non-fatal: the drag still works while the pointer stays over the frame.
-    }
 
     if (pointersRef.current.size === 2) {
       const [a, b] = [...pointersRef.current.values()];
       pinchRef.current = { distance: distance(a, b) };
       dragRef.current = null;
-      suppressClickRef.current = true; // a pinch is never a tap
+      suppressClickRef.current = true; // a pinch is never a tap, so capture is safe here
+      capturePointer(event);
       setGrabbing(false);
       return;
     }
@@ -174,8 +186,9 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
     const dy = point.y - drag.startY;
 
     if (!drag.moved) {
-      if (Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+      if (!exceedsDragThreshold(dx, dy)) return;
       drag.moved = true;
+      capturePointer(event);
       setGrabbing(true);
     }
     suppressClickRef.current = true;
