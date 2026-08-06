@@ -36,10 +36,11 @@ check('unconnected road rejected', typeof bad === 'string');
 // Wrong player rejected
 check('wrong turn rejected', typeof placeRoad(initialGameState, 1, edgeAt0) === 'string');
 
-// Play phase: costs 1 brick + 1 wood
+// Play phase: costs 1 brick + 1 wood. dice non-null = already rolled this turn.
 const playState = {
   ...initialGameState,
   phase: 'play',
+  dice: { die1: 3, die2: 3, total: 6, isRobber: false },
   players: initialGameState.players.map((p, i) =>
     i === 0 ? { ...p, resources: { ...p.resources, brick: 1, wood: 1 } } : p
   ),

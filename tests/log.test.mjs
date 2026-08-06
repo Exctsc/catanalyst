@@ -90,7 +90,7 @@ check('endTurn logs a turn-change entry', gs.log.some(e => e.text.includes("turn
 
 // bankTrade logs
 const tradeState = {
-  ...initialGameState, phase: 'play', setup: null,
+  ...initialGameState, phase: 'play', setup: null, dice: { die1: 3, die2: 3, total: 6, isRobber: false },
   players: initialGameState.players.map((p, i) => i === 0 ? { ...p, resources: { ...p.resources, brick: 4 } } : p),
 };
 const traded = bankTrade(tradeState, 0, 'brick', 'wood');

@@ -1,4 +1,7 @@
 {
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
+  },
   "permissions": {
     "allow": [
       "Bash(node *)",
@@ -11,7 +14,27 @@
       "Bash(npx vite *)",
       "Bash(npx eslint *)",
       "Skill(run)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "Bash(claude doctor *)",
+      "Bash(claude install *)",
+      "Bash(echo \"LINT_CLEAN=$?\")",
+      "Bash(awk -F' ' '{s+=$1} END {print \"TOTAL:\", s}')",
+      "Bash(awk '{print $6, $7, $9, $10}')",
+      "Bash(sort -k4)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/tonyren/.local/bin/headroom wrap selfheal --marker headroom-wrap-selfheal",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

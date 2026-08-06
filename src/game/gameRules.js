@@ -67,3 +67,30 @@ HEX_CENTERS.forEach((_, hexIdx) => {
     }
   }
 });
+
+// PORTS — the 9 standard harbours: 4 generic 3:1 + one 2:1 per resource type.
+// `vertices` are the two coastal intersection indices the port serves; `type`
+// is 'generic' (3:1) or a resource name (2:1). `x`/`y` position the dock label
+// out to sea; these coastal edges were derived from the same VERTICES geometry.
+export const PORTS = [
+  { type: 'generic', vertices: [4, 5],   x:  -80, y:  -92 },
+  { type: 'ore',     vertices: [9, 12],  x:   80, y:  -92 },
+  { type: 'generic', vertices: [22, 24], x:  242, y:   60 },
+  { type: 'wheat',   vertices: [35, 36], x:  242, y:  195 },
+  { type: 'brick',   vertices: [52, 53], x:  165, y:  378 },
+  { type: 'generic', vertices: [50, 51], x:    0, y:  390 },
+  { type: 'sheep',   vertices: [48, 49], x: -165, y:  378 },
+  { type: 'wood',    vertices: [26, 27], x: -242, y:  195 },
+  { type: 'generic', vertices: [16, 17], x: -242, y:   60 },
+];
+
+// --- Board extents ---
+// The SVG viewBox and the board's unscaled pixel size, derived from the same
+// SIZE/spacing constants as the geometry above. Exported from this pure module
+// (rather than computed in HexBoard.jsx) so BoardViewport's zoom/pan limits and
+// the Node tests can use them without importing JSX.
+export const BOARD_PADDING = 65;
+export const BOARD_WIDTH = 5 * H_SPACING + 2 * BOARD_PADDING;
+export const BOARD_HEIGHT = 4 * V_SPACING + 2 * SIZE + 2 * BOARD_PADDING;
+export const BOARD_MIN_X = -2.5 * H_SPACING - BOARD_PADDING;
+export const BOARD_MIN_Y = -SIZE - BOARD_PADDING;

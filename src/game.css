@@ -64,8 +64,13 @@
   color: var(--g-text-dim);
   text-transform: capitalize;
 }
-.g-header .g-status {
+.g-header-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.g-header .g-status {
   font-size: 14px;
   font-weight: 600;
   padding: 5px 12px;
@@ -123,6 +128,113 @@
   font-weight: 800;
   color: white;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Board viewport (zoom / pan) ---------- */
+.g-board-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.g-board-frame {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: grab;
+  /* Pinch and drag are handled in JS; without this the browser would scroll
+     the page or run its own pinch-zoom on top of ours. */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+.g-board-frame.g-board-grabbing {
+  cursor: grabbing;
+}
+.g-board-surface {
+  flex: 0 0 auto;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+.g-board-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border-radius: 9px;
+  background: rgba(30, 34, 44, 0.85);
+  border: 1px solid var(--g-border);
+  backdrop-filter: blur(3px);
+}
+.g-zoom-level {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--g-text-dim);
+  min-width: 34px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.g-zoom-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--g-border);
+  background: var(--g-panel-2);
+  color: var(--g-text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.g-zoom-btn:hover:not(:disabled) {
+  background: #303643;
+  border-color: #47506180;
+}
+.g-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ---------- Audio controls ---------- */
+.g-audio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.g-audio-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--g-border);
+  background: var(--g-panel-2);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.g-audio-btn:hover {
+  background: #303643;
+}
+.g-audio-slider {
+  width: 78px;
+  accent-color: var(--g-accent);
+  cursor: pointer;
 }
 
 /* ---------- Right sidebar ---------- */

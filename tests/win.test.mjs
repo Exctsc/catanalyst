@@ -11,7 +11,7 @@ function check(name, cond) {
 function playState(p1Overrides) {
   return {
     ...initialGameState,
-    phase: 'play',
+    phase: 'play', dice: { die1: 3, die2: 3, total: 6, isRobber: false },
     setup: null,
     players: initialGameState.players.map((p, i) => i === 0 ? { ...p, ...p1Overrides } : p),
   };

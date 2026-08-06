@@ -14,7 +14,7 @@ function check(name, cond) {
 // Play-phase base with a configurable deck and player-0 overrides.
 function play(deck, p0) {
   return {
-    ...initialGameState, phase: 'play', setup: null, currentPlayerIndex: 0,
+    ...initialGameState, phase: 'play', setup: null, currentPlayerIndex: 0, dice: { die1: 3, die2: 3, total: 6, isRobber: false },
     devCardDeck: deck,
     players: initialGameState.players.map((p, i) => i === 0 ? { ...p, ...p0 } : p),
   };

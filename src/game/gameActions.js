@@ -1,4 +1,4 @@
-import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES } from './gameRules.js';
+import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES, PORTS } from './gameRules.js';
 
 // Mirrors tile/number layout in HexBoard.jsx — kept in sync manually
 const HEX_TILES = [
@@ -42,6 +42,8 @@ export function performRoll(gameState) {
 
 export function endTurn(gameState) {
   if (gameState.phase !== 'play' || gameState.robber !== null || gameState.winner !== null) return gameState;
+  // Must roll before the turn can end.
+  if (gameState.dice === null) return gameState;
   const cur = gameState.currentPlayerIndex;
   const next = (cur + 1) % gameState.players.length;
   // Cards bought this turn become playable next turn; clear the per-turn flags.
@@ -240,6 +242,8 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
+  // In play phase, no manual building before the dice are rolled.
+  if (gameState.phase === 'play' && gameState.dice === null) return 'Roll the dice first';
   if (isOccupied(gameState, intersectionIndex)) return 'Intersection already occupied';
   if (VERTEX_ADJACENCY[intersectionIndex].some(adj => isOccupied(gameState, adj)))
     return 'Too close to another settlement';
@@ -305,6 +309,10 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
+  // No manual road-building before rolling — but Road Building's free roads
+  // (a dev-card consequence) are allowed since they run while roadBuilding is set.
+  if (gameState.phase === 'play' && gameState.dice === null && !gameState.roadBuilding)
+    return 'Roll the dice first';
   if (edgeIndex < 0 || edgeIndex >= EDGES.length) return 'Invalid edge';
 
   const edgeTaken = gameState.players.some(p => p.roads.some(r => r.edgeIndex === edgeIndex));
@@ -402,6 +410,7 @@ export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
   if (gameState.phase === 'setup') return 'Cannot build cities during setup';
+  if (gameState.dice === null) return 'Roll the dice first';
 
   const player = gameState.players[playerIndex];
   if (!player.settlements.some(s => s.intersectionIndex === intersectionIndex))
@@ -427,32 +436,53 @@ export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
   return finalizeBuild(s, playerIndex);
 }
 
+// Best bank-trade rate for giving away `resource`: 2 with the matching 2:1
+// port, else 3 with any generic 3:1 port, else the default 4:1. A port is held
+// if the player has a settlement or city on either of its two coastal vertices.
+export function portRate(gameState, playerIndex, resource) {
+  const player = gameState.players[playerIndex];
+  const owned = new Set([
+    ...player.settlements.map(s => s.intersectionIndex),
+    ...player.cities.map(c => c.intersectionIndex),
+  ]);
+  let hasGeneric = false;
+  for (const port of PORTS) {
+    if (!port.vertices.some(v => owned.has(v))) continue;
+    if (port.type === resource) return 2;
+    if (port.type === 'generic') hasGeneric = true;
+  }
+  return hasGeneric ? 3 : 4;
+}
+
 export function bankTrade(gameState, playerIndex, give, receive) {
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
   if (gameState.phase === 'setup') return 'Cannot trade during setup';
+  if (gameState.dice === null) return 'Roll the dice first';
   if (!RESOURCE_TYPES.includes(give) || !RESOURCE_TYPES.includes(receive)) return 'Unknown resource';
   if (give === receive) return 'Pick two different resources';
-  if (gameState.players[playerIndex].resources[give] < 4) return `You need 4 ${give} to trade`;
+
+  const rate = portRate(gameState, playerIndex, give);
+  if (gameState.players[playerIndex].resources[give] < rate) return `You need ${rate} ${give} to trade`;
   if (gameState.bank[receive] < 1) return `Bank is out of ${receive}`;
 
   const players = gameState.players.map((p, idx) => {
     if (idx !== playerIndex) return p;
     return {
       ...p,
-      resources: { ...p.resources, [give]: p.resources[give] - 4, [receive]: p.resources[receive] + 1 },
+      resources: { ...p.resources, [give]: p.resources[give] - rate, [receive]: p.resources[receive] + 1 },
     };
   });
 
   const bank = {
     ...gameState.bank,
-    [give]: gameState.bank[give] + 4,
+    [give]: gameState.bank[give] + rate,
     [receive]: gameState.bank[receive] - 1,
   };
 
   return log({ ...gameState, players, bank }, playerIndex,
-    `${gameState.players[playerIndex].name} traded 4 ${give} for 1 ${receive} with the bank`);
+    `${gameState.players[playerIndex].name} traded ${rate} ${give} for 1 ${receive} with the bank`);
 }
 
 function totalCards(player) {

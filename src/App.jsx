@@ -4,8 +4,15 @@ import {
   performRoll, endTurn, placeSettlement, placeRoad, upgradeToCity,
   bankTrade, discardCards, moveRobber, stealResource,
   buyDevCard, playKnight, playRoadBuilding, playYearOfPlenty, playMonopoly,
+  portRate,
 } from './game/gameActions'
+import { BOARD_WIDTH, BOARD_HEIGHT } from './game/gameRules'
 import HexBoard from './components/HexBoard'
+import BoardViewport from './components/BoardViewport'
+import {
+  playSound, getAudioSettings, subscribeAudioSettings, setAudioMuted, setAudioVolume,
+} from './audio/sounds'
+import { soundsForTransition } from './audio/gameSounds'
 import './game.css'
 
 const RESOURCES = ['brick', 'wood', 'ore', 'wheat', 'sheep']
@@ -25,6 +32,57 @@ const DEV_META = {
   victoryPoint: { label: 'Victory Point', icon: '🏆', playable: false },
 }
 const DEV_ORDER = ['knight', 'roadBuilding', 'yearOfPlenty', 'monopoly', 'victoryPoint']
+
+// Plays the cues implied by each game-state change. The prev→next diff lives in
+// audio/gameSounds.js; this hook only handles timing, spacing a multi-cue
+// transition (roll → income, build → turn handoff) so the sounds don't collide.
+const CUE_SPACING_MS = 220
+
+function useGameSounds(gameState) {
+  const previousRef = useRef(gameState)
+  useEffect(() => {
+    const cues = soundsForTransition(previousRef.current, gameState)
+    previousRef.current = gameState
+    const timers = []
+    cues.forEach((cue, i) => {
+      if (i === 0) playSound(cue)
+      else timers.push(setTimeout(() => playSound(cue), i * CUE_SPACING_MS))
+    })
+    return () => timers.forEach(clearTimeout)
+  }, [gameState])
+}
+
+// Mute toggle + volume slider. Settings live in the audio module (and
+// localStorage), so this component just mirrors them.
+function AudioControls() {
+  const [settings, setSettings] = useState(getAudioSettings)
+  useEffect(() => subscribeAudioSettings(setSettings), [])
+
+  const silent = settings.muted || settings.volume === 0
+  return (
+    <div className="g-audio">
+      <button
+        className="g-audio-btn"
+        onClick={() => setAudioMuted(!settings.muted)}
+        title={settings.muted ? 'Unmute sound' : 'Mute sound'}
+        aria-label={settings.muted ? 'Unmute sound' : 'Mute sound'}
+        aria-pressed={settings.muted}
+      >
+        {silent ? '🔇' : '🔊'}
+      </button>
+      <input
+        className="g-audio-slider"
+        type="range"
+        min={0}
+        max={100}
+        value={Math.round(settings.volume * 100)}
+        onChange={e => setAudioVolume(Number(e.target.value) / 100)}
+        title={`Volume ${Math.round(settings.volume * 100)}%`}
+        aria-label="Volume"
+      />
+    </div>
+  )
+}
 
 function ResourceChip({ resource, size = 16 }) {
   return (
@@ -188,6 +246,8 @@ export default function App() {
   const [monoPick, setMonoPick] = useState('brick')
   const [chatMessages, setChatMessages] = useState([])
 
+  useGameSounds(gameState)
+
   const currentPlayer = gameState.players[gameState.currentPlayerIndex]
   const isSetup = gameState.phase === 'setup'
   const robber = gameState.robber
@@ -229,8 +289,11 @@ export default function App() {
     apply(placeRoad(gameState, gameState.currentPlayerIndex, edgeIndex))
   }
 
+  // The one cue not derived from the state diff: a bank trade only shuffles
+  // cards between a hand and the bank, which is indistinguishable from paying
+  // a build cost, so it's announced from the handler that knows what happened.
   function handleBankTrade() {
-    apply(bankTrade(gameState, gameState.currentPlayerIndex, tradeGive, tradeReceive))
+    if (apply(bankTrade(gameState, gameState.currentPlayerIndex, tradeGive, tradeReceive))) playSound('trade')
   }
 
   function handleDiscard(playerIndex, counts) {
@@ -298,9 +361,13 @@ export default function App() {
     status = `Place a ${gameState.setup.expecting}`
   }
 
+  // In play phase, dice must be rolled before building/trading/ending the turn.
+  // Dev cards remain playable pre-roll, so canPlayDev is not gated on the roll.
+  const preRoll = gameState.phase === 'play' && gameState.dice === null && !robber && winner === null
   const canRoll = !isSetup && gameState.dice === null && winner === null && !robber && !roadBuilding
-  const canEndTurn = !isSetup && !robber && !roadBuilding && winner === null
+  const canEndTurn = !isSetup && !robber && !roadBuilding && winner === null && gameState.dice !== null
   const canBuyDev = !isSetup && !robber && !roadBuilding && winner === null
+  const canTradeOrBuild = !isSetup && !preRoll
   const canPlayDev = gameState.phase === 'play' && !gameState.devCardPlayedThisTurn && !robber && !roadBuilding && winner === null
   const showActions = !robber && !winner && !roadBuilding
 
@@ -310,21 +377,26 @@ export default function App() {
         <span className="g-brand">⬡ Catanalyst</span>
         <span className="g-turn" style={{ color: currentPlayer.colour }}>{currentPlayer.name}'s turn</span>
         <span className="g-phase">· {gameState.phase} phase · turn {gameState.turn}</span>
-        {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
+        <div className="g-header-right">
+          {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
+          <AudioControls />
+        </div>
       </header>
 
       <div className="g-body">
         <main className="g-center">
           {message && <div className="g-toast">{message}</div>}
-          <HexBoard
-            placements={placements}
-            roads={roadPlacements}
-            cities={cityPlacements}
-            robberHex={gameState.robberHex}
-            onIntersectionClick={handleIntersectionClick}
-            onEdgeClick={handleEdgeClick}
-            onHexClick={robber?.stage === 'move' ? handleHexClick : undefined}
-          />
+          <BoardViewport contentWidth={BOARD_WIDTH} contentHeight={BOARD_HEIGHT}>
+            <HexBoard
+              placements={placements}
+              roads={roadPlacements}
+              cities={cityPlacements}
+              robberHex={gameState.robberHex}
+              onIntersectionClick={handleIntersectionClick}
+              onEdgeClick={handleEdgeClick}
+              onHexClick={robber?.stage === 'move' ? handleHexClick : undefined}
+            />
+          </BoardViewport>
           {winner && (
             <div className="g-winner">
               <div className="g-winner-card" style={{ background: winner.colour }}>
@@ -438,11 +510,15 @@ export default function App() {
             </div>
           )}
 
-          {tradeOpen && showActions && (
+          {tradeOpen && showActions && !preRoll && (
             <div className="g-popover">
-              <span>Give 4</span>
+              <span>Give {portRate(gameState, gameState.currentPlayerIndex, tradeGive)}</span>
               <select value={tradeGive} onChange={e => setTradeGive(e.target.value)}>
-                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
+                {RESOURCES.map(r => (
+                  <option key={r} value={r}>
+                    {r} ({portRate(gameState, gameState.currentPlayerIndex, r)}:1)
+                  </option>
+                ))}
               </select>
               <span>for 1</span>
               <select value={tradeReceive} onChange={e => setTradeReceive(e.target.value)}>
@@ -462,8 +538,8 @@ export default function App() {
           {showActions && (
             <>
               <button className="g-btn g-btn-primary" onClick={handleRoll} disabled={!canRoll}>Roll Dice</button>
-              <button className="g-btn" onClick={() => { setTradeOpen(o => !o); setBuildOpen(false); setDevPanel(null) }} disabled={isSetup}>Trade</button>
-              <button className="g-btn" onClick={() => { setBuildOpen(o => !o); setTradeOpen(false); setDevPanel(null) }} disabled={isSetup}>Build</button>
+              <button className="g-btn" onClick={() => { setTradeOpen(o => !o); setBuildOpen(false); setDevPanel(null) }} disabled={!canTradeOrBuild}>Trade</button>
+              <button className="g-btn" onClick={() => { setBuildOpen(o => !o); setTradeOpen(false); setDevPanel(null) }} disabled={!canTradeOrBuild}>Build</button>
               <button className="g-btn" onClick={handleBuyDev} disabled={!canBuyDev}>Buy Dev ({gameState.devCardDeck.length})</button>
               <button className="g-btn" onClick={handleEndTurn} disabled={!canEndTurn}>End Turn</button>
             </>

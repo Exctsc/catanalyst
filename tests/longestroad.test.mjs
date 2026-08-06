@@ -32,7 +32,7 @@ function roadsState(path, extra = {}) {
   const roads = [];
   for (let k = 0; k < path.length - 1; k++) roads.push({ edgeIndex: eidx(path[k], path[k + 1]) });
   return {
-    ...initialGameState, phase: 'play', setup: null,
+    ...initialGameState, phase: 'play', setup: null, dice: { die1: 3, die2: 3, total: 6, isRobber: false },
     players: initialGameState.players.map((p, i) => i === 0 ? { ...p, roads } : p),
     ...extra,
   };
@@ -55,7 +55,7 @@ const branchRoads = [
   { edgeIndex: eidx(stubStart, stubEnd) },
 ];
 const branchState = {
-  ...initialGameState, phase: 'play', setup: null,
+  ...initialGameState, phase: 'play', setup: null, dice: { die1: 3, die2: 3, total: 6, isRobber: false },
   players: initialGameState.players.map((p, i) => i === 0 ? { ...p, roads: branchRoads } : p),
 };
 check('branch has 4 roads', branchState.players[0].roads.length === 4);
@@ -85,7 +85,7 @@ function buildChain(state, playerIndex, path) {
 const bigAmt = 20;
 const roadPath = simplePath(0, 5); // 5 edges
 let awardState = {
-  ...initialGameState, phase: 'play', setup: null, currentPlayerIndex: 0,
+  ...initialGameState, phase: 'play', setup: null, dice: { die1: 3, die2: 3, total: 6, isRobber: false }, currentPlayerIndex: 0,
   players: initialGameState.players.map((p, i) => i === 0
     ? { ...p, settlements: [{ intersectionIndex: roadPath[0] }], resources: { brick: bigAmt, wood: bigAmt, ore: 0, wheat: 0, sheep: 0 } }
     : p),

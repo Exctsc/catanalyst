@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { EDGES } from '../game/gameRules.js';
+import {
+  EDGES, PORTS, BOARD_WIDTH, BOARD_HEIGHT, BOARD_MIN_X, BOARD_MIN_Y,
+} from '../game/gameRules.js';
 
 const SIZE = 50;
 const H_SPACING = SIZE * Math.sqrt(3);
@@ -51,18 +53,18 @@ const VERTICES = (() => {
   return verts;
 })();
 
-// 9 ports: 5 resource 2:1 + 4 generic 3:1, hardcoded around the board edge
-const PORTS = [
-  { x:  -80, y:  -92, label: '3:1',       fill: '#E0E0E0', text: '#444' },
-  { x:   80, y:  -92, label: '2:1 Ore',   fill: '#8C8C8C', text: 'white' },
-  { x:  242, y:   60, label: '3:1',       fill: '#E0E0E0', text: '#444' },
-  { x:  242, y:  195, label: '2:1 Wheat', fill: '#F4D03F', text: '#333' },
-  { x:  165, y:  378, label: '2:1 Brick', fill: '#C1440E', text: 'white' },
-  { x:    0, y:  390, label: '3:1',       fill: '#E0E0E0', text: '#444' },
-  { x: -165, y:  378, label: '2:1 Sheep', fill: '#90EE90', text: '#333' },
-  { x: -242, y:  195, label: '2:1 Wood',  fill: '#228B22', text: 'white' },
-  { x: -242, y:   60, label: '3:1',       fill: '#E0E0E0', text: '#444' },
-];
+// Port visual styling keyed by type (data + coastal vertices live in gameRules PORTS)
+const PORT_STYLE = {
+  generic: { fill: '#E0E0E0', text: '#444' },
+  brick:   { fill: '#C1440E', text: 'white' },
+  wood:    { fill: '#228B22', text: 'white' },
+  ore:     { fill: '#8C8C8C', text: 'white' },
+  wheat:   { fill: '#F4D03F', text: '#333' },
+  sheep:   { fill: '#90EE90', text: '#333' },
+};
+function portLabel(type) {
+  return type === 'generic' ? '3:1' : `2:1 ${type[0].toUpperCase()}${type.slice(1)}`;
+}
 
 function hexPoints(cx, cy) {
   const pts = [];
@@ -110,13 +112,21 @@ function Token({ cx, cy, number }) {
   );
 }
 
-function PortLabel({ x, y, label, fill, text }) {
+function Port({ port }) {
+  const { fill, text } = PORT_STYLE[port.type];
+  const label = portLabel(port.type);
   const w = label.length * 6.5 + 10;
   const h = 18;
+  const [va, vb] = port.vertices;
+  const A = VERTICES[va];
+  const B = VERTICES[vb];
   return (
     <g>
+      {/* dock lines connecting the harbour to the two coastal intersections it serves */}
+      <line x1={port.x} y1={port.y} x2={A.x} y2={A.y} stroke="rgba(150,110,60,0.65)" strokeWidth={2.5} strokeDasharray="3 3" />
+      <line x1={port.x} y1={port.y} x2={B.x} y2={B.y} stroke="rgba(150,110,60,0.65)" strokeWidth={2.5} strokeDasharray="3 3" />
       <rect
-        x={x - w / 2} y={y - h / 2}
+        x={port.x - w / 2} y={port.y - h / 2}
         width={w} height={h}
         rx={4}
         fill={fill}
@@ -124,7 +134,7 @@ function PortLabel({ x, y, label, fill, text }) {
         strokeWidth={1}
       />
       <text
-        x={x} y={y}
+        x={port.x} y={port.y}
         textAnchor="middle"
         dominantBaseline="central"
         fontSize={10}
@@ -177,11 +187,12 @@ function Road({ edgeIndex, colour }) {
   );
 }
 
-const PAD = 65;
-const VB_W = 5 * H_SPACING + 2 * PAD;
-const VB_H = 4 * V_SPACING + 2 * SIZE + 2 * PAD;
-const VB_MIN_X = -2.5 * H_SPACING - PAD;
-const VB_MIN_Y = -SIZE - PAD;
+// Viewbox extents come from gameRules so the board's pixel size has a single
+// definition shared with BoardViewport's pan/zoom limits and the tests.
+const VB_W = BOARD_WIDTH;
+const VB_H = BOARD_HEIGHT;
+const VB_MIN_X = BOARD_MIN_X;
+const VB_MIN_Y = BOARD_MIN_Y;
 
 function RobberMarker({ cx, cy }) {
   return (
@@ -216,72 +227,73 @@ export default function HexBoard({ placements = [], roads = [], cities = [], rob
     }
   });
 
+  // Rendered at its natural size with no max-width fitting: scaling is the
+  // job of the enclosing BoardViewport's transform, and letting CSS shrink the
+  // SVG as well would fight the zoom level the user picked.
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' }}>
-      <svg
-        width={VB_W}
-        height={VB_H}
-        viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
-        style={{ maxWidth: '100%', maxHeight: '100%' }}
-      >
-        {hexes.map(({ x, y, resource, number }, i) => (
-          <g
-            key={i}
-            onClick={onHexClick ? () => onHexClick(i) : undefined}
-            style={onHexClick ? { cursor: 'pointer' } : undefined}
-          >
-            <polygon
-              points={hexPoints(x, y)}
-              fill={RESOURCE_COLORS[resource]}
-              stroke="#333"
-              strokeWidth={2}
-            />
-            {number !== null && <Token cx={x} cy={y} number={number} />}
-            {robberHex === i && <RobberMarker cx={x} cy={y} />}
-          </g>
-        ))}
-        {PORTS.map((port, i) => (
-          <PortLabel key={i} {...port} />
-        ))}
-        {EDGES.map((_, edgeIndex) => {
-          const colour = roadMap.get(edgeIndex);
-          if (colour) return <Road key={edgeIndex} edgeIndex={edgeIndex} colour={colour} />;
-          if (!onEdgeClick) return null;
-          return <RoadSlot key={edgeIndex} edgeIndex={edgeIndex} onEdgeClick={onEdgeClick} />;
-        })}
-        {VERTICES.map(({ x, y }, i) => {
-          const cityColour = cityMap.get(i);
-          if (cityColour) {
-            const s = 16;
-            return (
-              <rect
-                key={i}
-                x={x - s / 2} y={y - s / 2}
-                width={s} height={s}
-                rx={2}
-                fill={cityColour}
-                stroke="white"
-                strokeWidth={2}
-                onClick={onIntersectionClick ? () => onIntersectionClick(i) : undefined}
-                style={onIntersectionClick ? { cursor: 'pointer' } : undefined}
-              />
-            );
-          }
-          const colour = settlementMap.get(i);
+    <svg
+      width={VB_W}
+      height={VB_H}
+      viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
+      style={{ display: 'block' }}
+    >
+      {hexes.map(({ x, y, resource, number }, i) => (
+        <g
+          key={i}
+          onClick={onHexClick ? () => onHexClick(i) : undefined}
+          style={onHexClick ? { cursor: 'pointer' } : undefined}
+        >
+          <polygon
+            points={hexPoints(x, y)}
+            fill={RESOURCE_COLORS[resource]}
+            stroke="#333"
+            strokeWidth={2}
+          />
+          {number !== null && <Token cx={x} cy={y} number={number} />}
+          {robberHex === i && <RobberMarker cx={x} cy={y} />}
+        </g>
+      ))}
+      {PORTS.map((port, i) => (
+        <Port key={i} port={port} />
+      ))}
+      {EDGES.map((_, edgeIndex) => {
+        const colour = roadMap.get(edgeIndex);
+        if (colour) return <Road key={edgeIndex} edgeIndex={edgeIndex} colour={colour} />;
+        if (!onEdgeClick) return null;
+        return <RoadSlot key={edgeIndex} edgeIndex={edgeIndex} onEdgeClick={onEdgeClick} />;
+      })}
+      {VERTICES.map(({ x, y }, i) => {
+        const cityColour = cityMap.get(i);
+        if (cityColour) {
+          const s = 16;
           return (
-            <circle
+            <rect
               key={i}
-              cx={x} cy={y}
-              r={colour ? 7 : 4}
-              fill={colour || 'white'}
-              stroke={colour ? 'white' : '#333'}
-              strokeWidth={colour ? 2 : 1.5}
+              x={x - s / 2} y={y - s / 2}
+              width={s} height={s}
+              rx={2}
+              fill={cityColour}
+              stroke="white"
+              strokeWidth={2}
               onClick={onIntersectionClick ? () => onIntersectionClick(i) : undefined}
               style={onIntersectionClick ? { cursor: 'pointer' } : undefined}
             />
           );
-        })}
-      </svg>
-    </div>
+        }
+        const colour = settlementMap.get(i);
+        return (
+          <circle
+            key={i}
+            cx={x} cy={y}
+            r={colour ? 7 : 4}
+            fill={colour || 'white'}
+            stroke={colour ? 'white' : '#333'}
+            strokeWidth={colour ? 2 : 1.5}
+            onClick={onIntersectionClick ? () => onIntersectionClick(i) : undefined}
+            style={onIntersectionClick ? { cursor: 'pointer' } : undefined}
+          />
+        );
+      })}
+    </svg>
   );
 }

@@ -9,7 +9,7 @@ function check(name, cond) {
 
 const playState = {
   ...initialGameState,
-  phase: 'play',
+  phase: 'play', dice: { die1: 3, die2: 3, total: 6, isRobber: false },
   setup: null,
   players: initialGameState.players.map((p, i) =>
     i === 0 ? { ...p, resources: { ...p.resources, brick: 5 } } : p

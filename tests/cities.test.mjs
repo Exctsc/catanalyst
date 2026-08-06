@@ -11,7 +11,7 @@ function check(name, cond) {
 // P2 settlement at vertex 12 (adjacent to hex 2 forest#3 only).
 const base = {
   ...initialGameState,
-  phase: 'play',
+  phase: 'play', dice: { die1: 3, die2: 3, total: 6, isRobber: false },
   setup: null,
   players: initialGameState.players.map((p, i) => {
     if (i === 0) return { ...p, settlements: [{ intersectionIndex: 0 }], resources: { ...p.resources, wheat: 2, ore: 3 } };
