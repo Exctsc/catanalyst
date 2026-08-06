@@ -148,6 +148,13 @@ function Port({ port }) {
 }
 
 // Shrink an edge's endpoints toward its midpoint so roads don't cover intersection dots
+// Click-target sizes. The drawn intersection dot is r=4 when empty, which at
+// fit-to-frame zoom is far smaller than a mouse can reliably hit, so the thing
+// the browser hit-tests is decoupled from the thing it draws. Vertices sit
+// ~50 units apart, so r=16 targets stay well clear of each other.
+const HIT_RADIUS = 16;
+const HIT_STROKE = 18;
+
 function edgeEndpoints(edgeIndex, shrink) {
   const [v1, v2] = EDGES[edgeIndex];
   const a = VERTICES[v1];
@@ -164,16 +171,27 @@ function RoadSlot({ edgeIndex, onEdgeClick }) {
   const [hovered, setHovered] = useState(false);
   const { x1, y1, x2, y2 } = edgeEndpoints(edgeIndex, 0.62);
   return (
-    <line
-      x1={x1} y1={y1} x2={x2} y2={y2}
-      stroke={hovered ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)'}
-      strokeWidth={hovered ? 8 : 6}
-      strokeLinecap="round"
+    <g
       onClick={() => onEdgeClick(edgeIndex)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{ cursor: 'pointer' }}
-    />
+    >
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={hovered ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)'}
+        strokeWidth={hovered ? 8 : 6}
+        strokeLinecap="round"
+      />
+      {/* Hit target only: a 6px line is thin to hit once fitZoom shrinks the
+          board, so widen what the browser hit-tests without redrawing it. */}
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke="transparent"
+        strokeWidth={HIT_STROKE}
+        strokeLinecap="round"
+      />
+    </g>
   );
 }
 
@@ -275,8 +293,6 @@ export default function HexBoard({ placements = [], roads = [], cities = [], rob
               fill={cityColour}
               stroke="white"
               strokeWidth={2}
-              onClick={onIntersectionClick ? () => onIntersectionClick(i) : undefined}
-              style={onIntersectionClick ? { cursor: 'pointer' } : undefined}
             />
           );
         }
@@ -289,11 +305,21 @@ export default function HexBoard({ placements = [], roads = [], cities = [], rob
             fill={colour || 'white'}
             stroke={colour ? 'white' : '#333'}
             strokeWidth={colour ? 2 : 1.5}
-            onClick={onIntersectionClick ? () => onIntersectionClick(i) : undefined}
-            style={onIntersectionClick ? { cursor: 'pointer' } : undefined}
           />
         );
       })}
+      {/* Hit targets only — no fill, drawn last so they sit above every visual
+          (including the road slots, which keep their clear middle section). */}
+      {onIntersectionClick && VERTICES.map(({ x, y }, i) => (
+        <circle
+          key={`hit-${i}`}
+          cx={x} cy={y}
+          r={HIT_RADIUS}
+          fill="transparent"
+          onClick={() => onIntersectionClick(i)}
+          style={{ cursor: 'pointer' }}
+        />
+      ))}
     </svg>
   );
 }

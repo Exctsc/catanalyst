@@ -3,7 +3,7 @@ import {
   endTurn, placeSettlement, placeRoad, upgradeToCity, bankTrade,
   playKnight, playRoadBuilding,
 } from '../src/game/gameActions.js';
-import { EDGES } from '../src/game/gameRules.js';
+import { EDGES, VERTICES, VERTEX_ADJACENCY } from '../src/game/gameRules.js';
 
 let pass = 0, fail = 0;
 function check(name, cond) {
@@ -59,6 +59,28 @@ check('free road places before rolling (roadBuilding bypasses the gate)', typeof
 // --- Setup phase is unaffected (no dice gate) ---
 const setupSettle = placeSettlement(initialGameState, 0, 0)
 check('setup settlement works with dice null (no gate in setup)', typeof setupSettle !== 'string')
+
+// The whole setup runs with dice === null, so the gate must never bite for any
+// of the 4 players: a phase-blind `dice === null` check would stall turn 0.
+let su = initialGameState
+const occupied = () => new Set(su.players.flatMap(p => p.settlements.map(s => s.intersectionIndex)))
+let setupOk = true
+for (let t = 0; t < 8; t++) {
+  const who = su.currentPlayerIndex
+  const occ = occupied()
+  const v = VERTICES.findIndex((_, i) => !occ.has(i) && !VERTEX_ADJACENCY[i].some(a => occ.has(a)))
+  const afterSettlement = placeSettlement(su, who, v)
+  if (typeof afterSettlement === 'string' || su.dice !== null) { setupOk = false; break }
+  su = afterSettlement
+  const taken = new Set(su.players.flatMap(p => p.roads.map(r => r.edgeIndex)))
+  const e = EDGES.findIndex(([a, b], i) => !taken.has(i) && (a === v || b === v))
+  const afterRoad = placeRoad(su, who, e)
+  if (typeof afterRoad === 'string') { setupOk = false; break }
+  su = afterRoad
+}
+check('all 8 setup placements succeed with dice null (all 4 players)', setupOk)
+check('setup completes into play phase', su.phase === 'play' && su.setup === null)
+check('every player placed 2 settlements during setup', su.players.every(p => p.settlements.length === 2))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

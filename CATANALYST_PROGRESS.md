@@ -2,7 +2,7 @@
 
 > Stack: React 19 + Vite 8, plain JS (no TypeScript), no extra UI packages.  
 > Run with `npm run dev`.  
-> **Verified 2026-08-05:** `npm test` green — 341 assertions, 0 failures across 14 suites. Every constant, export, and known-bug claim below re-checked against the source; all still accurate. Latest commit is `cb7a64e` (dev cards / awards / VP); the ports, roll-lock, zoom/pan, and audio work described below is in the working tree but **not yet committed**.
+> **Verified 2026-08-05:** `npm test` green — 344 assertions, 0 failures across 14 suites. Every constant, export, and known-bug claim below re-checked against the source; all still accurate. The ports, roll-lock, zoom/pan, and audio work described below is committed as `d5a2b5b`; the vertex/road hit-target fix is uncommitted.
 
 ---
 
@@ -19,8 +19,9 @@ SVG board renderer. All board constants are local to this file.
 - `Token` component — renders the circular number token with pip dots (pip count = `6 - |7 - n|`; 6 and 8 in red).
 - `PORT_STYLE` / `portLabel(type)` — map a port's `type` ('generic' or a resource) to its fill/text colours and label ("3:1" or "2:1 Ore").
 - `Port` component — draws the harbour label at the dock position plus two dashed dock lines to the port's real coastal intersection vertices.
+- **HIT_RADIUS (16) / HIT_STROKE (18)** — click-target sizes, deliberately much larger than the drawn shapes. What the browser hit-tests is decoupled from what it draws (see the hit-target fix below).
 - `edgeEndpoints(edgeIndex, shrink)` — edge line coordinates shrunk toward the midpoint so roads don't cover intersection dots.
-- `RoadSlot` component — translucent white clickable line on an empty edge; brightens on hover.
+- `RoadSlot` component — translucent white clickable line on an empty edge; brightens on hover. The click handler lives on a wrapping `<g>` containing two coincident lines: the visible one (strokeWidth 6, 8 on hover) and a `stroke="transparent"` line at `HIT_STROKE` that only exists to be hit.
 - `Road` component — thick player-coloured line with a dark outline for a placed road.
 - `RobberMarker` component — dark circle with a white "R", drawn above the number token on the robber's hex (`pointerEvents: none` so it never blocks hex clicks).
 - `HexBoard({ placements, roads, cities, robberHex, onIntersectionClick, onEdgeClick, onHexClick })` — the exported component. Accepts:
@@ -28,7 +29,7 @@ SVG board renderer. All board constants are local to this file.
   - `roads` — array of `{ edgeIndex, colour }` drawn as coloured road lines.
   - `cities` — array of `{ intersectionIndex, colour }` drawn as 16×16 coloured squares (visually distinct from settlement dots).
   - `robberHex` — hex index to draw the `RobberMarker` on.
-  - `onIntersectionClick(i)` — optional; if present, every vertex becomes `cursor:pointer` and fires with the vertex index on click.
+  - `onIntersectionClick(i)` — optional; if present, a separate pass of 54 invisible `r=16` circles is rendered **after** every other element (so it sits on top of the road slots) and fires with the vertex index on click. The visible dot/city square carries no handler of its own.
   - `onEdgeClick(e)` — optional; if present, empty edges render as clickable `RoadSlot`s and fire with the edge index on click.
   - `onHexClick(h)` — optional; if present, each hex group (tile + token) becomes clickable and fires with the hex index. Only passed by `App` while the robber is waiting to be moved.
 
@@ -197,7 +198,7 @@ Cohesive dark product theme for the game screen (imported by `App.jsx`). Defines
 ---
 
 ### `tests/`
-Node test suites over the pure game modules (`npm test` runs them all; each exits non-zero on failure): `roads`, `setup`, `cities`, `trade`, `robber`, `win`, `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound` — **341 assertions total**. Highlights: `devcards` covers buy/draw/cost, newly-bought lockout, one-per-turn, each card effect, and the hidden-VP win path; `largestarmy` covers the 3-knight threshold and strict-exceed / tie handoff; `longestroad` covers straight chains, branch (longest-trail, not total segments), opponent-settlement breaks, own-settlement no-break, and the 5+/tie/transfer award rules; `turnlock` covers the roll-before-end-turn gate, pre-roll build/trade blocking, and the dev-card exceptions; `ports` covers rate resolution (2:1 / 3:1 / 4:1, either coastal vertex, city grants) and that `bankTrade` spends the resolved rate. Play-phase fixtures across the suites set a non-null `dice` to represent a post-roll turn.
+Node test suites over the pure game modules (`npm test` runs them all; each exits non-zero on failure): `roads`, `setup`, `cities`, `trade`, `robber`, `win`, `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound` — **341 assertions total**. Highlights: `devcards` covers buy/draw/cost, newly-bought lockout, one-per-turn, each card effect, and the hidden-VP win path; `largestarmy` covers the 3-knight threshold and strict-exceed / tie handoff; `longestroad` covers straight chains, branch (longest-trail, not total segments), opponent-settlement breaks, own-settlement no-break, and the 5+/tie/transfer award rules; `turnlock` covers the roll-before-end-turn gate, pre-roll build/trade blocking, the dev-card exceptions, and that the gate never bites in setup — the whole 8-turn snake order is driven with `dice === null`, asserting every placement for all 4 players succeeds and setup still completes into play phase; `ports` covers rate resolution (2:1 / 3:1 / 4:1, either coastal vertex, city grants) and that `bankTrade` spends the resolved rate. Play-phase fixtures across the suites set a non-null `dice` to represent a post-roll turn.
 
 The two new suites cover the logic that is testable outside the DOM:
 - **`viewport`** (41) — zoom clamping incl. `NaN`/`±Infinity`; pan limits (symmetry, the guarantee that `MIN_VISIBLE` px survive any drag at every zoom, the small-board case that would otherwise invert the range); `clampView` pulling a pan back after a shrink; `zoomAt` keeping the cursor anchored in and out, respecting bounds, staying inside the pan limits from every frame corner, and round-tripping exactly over 4 zoom-in/zoom-out cycles; wheel-factor sign, reciprocity, and the higher `ctrlKey` trackpad-pinch sensitivity; `fitZoom` axis selection and bounds; pinch `distance`/`midpoint`.
@@ -293,7 +294,23 @@ The two new suites cover the logic that is testable outside the DOM:
 
 15. **Sound cues can't distinguish some same-shape transitions.** `soundsForTransition` reads a state diff, so a bank trade is indistinguishable from paying a build cost (hence the one explicit `playSound('trade')` call in `App`), and a Year of Plenty / Monopoly card gain deliberately doesn't fire the income cue because that is scoped to roll transitions. If player-to-player trading lands, it will need the same explicit treatment as the bank trade.
 
-16. **Longest-road search is exponential in the worst case.** `longestRoadLength` is an exact DFS over road trails. Fine for a real board (each player ≤ 15 roads), but a pathological dense subgraph would be slow; no memoisation/pruning beyond the visited-edge set.
+16. **`suppressClickRef` is only ever cleared by a click that actually arrives.** In `BoardViewport.jsx` the flag is set on drag (line 181) and pinch (line 139) but reset in exactly one place — inside `onClickCapture` (line 107). A gesture that ends *without* the browser dispatching a `click` (e.g. the pointer is released outside the window) would therefore leave it `true` and swallow the next legitimate click silently, with no error toast. The ordinary pan case is safe: press and release on different elements still fire a `click` on their common ancestor, which reaches the capture listener and clears the flag. *The stale-flag path is a code-reading inference — it has not been reproduced.* A one-line reset at the start of `handlePointerDown` would close it.
+
+17. **Longest-road search is exponential in the worst case.** `longestRoadLength` is an exact DFS over road trails. Fine for a real board (each player ≤ 15 roads), but a pathological dense subgraph would be slow; no memoisation/pruning beyond the visited-edge set.
+
+*Resolved 2026-08-05 — "setup-phase settlement placement does nothing" (root cause: undersized hit target):* the reported symptom was that at game start, clicking an intersection produced no settlement, no error toast, and no log entry.
+
+**Root cause: the vertex was too small to hit, not gated.** An empty intersection was drawn as an `r=4` circle and *that same circle* carried the `onClick`. At the initial fit-to-frame zoom the board is scaled to ~0.76, so the entire clickable region was a **3.0 px radius** disc on screen. A click a few pixels off centre fell through to the hex `<polygon>` underneath, which in setup has no handler at all (`onHexClick` is only passed while the robber is being moved), so nothing happened and nothing was reported — exactly the "no error, no placement" signature. Nothing was wrong with the game logic: the click never reached it.
+
+**The fix (`HexBoard.jsx`, hit-target sizing only):** the thing the browser hit-tests is now separate from the thing it draws. Visible dots, city squares and road lines lost their handlers; instead a pass of 54 `fill="transparent"` `r=16` circles is rendered **last** (so it layers above the road slots), and each `RoadSlot` wraps its visible line plus a coincident `stroke="transparent"` line of width 18 in a handler-bearing `<g>`. Appearance is byte-for-byte unchanged. The on-screen target radius went from **3.0 px to 12.2 px**. Adjacent vertices are 50 units apart against a 32-unit hit diameter, so no two targets overlap; the vertex circles cover the outer ~6.5 units of each road slot's shrunk ends but leave ~18 units of road clickable in the middle.
+
+**Verified in Chrome against `npm run dev`, with real browser input events and coordinates calibrated from the actual `clientX/clientY` the page received:**
+- *Vertex:* a click **9 px off centre** — 3× outside the old visible dot, on what used to be bare hex background — placed player 1's settlement on a fresh board, logged "Player 1 built a settlement", and advanced to "Place a road".
+- *Road slot:* a click **5.5 SVG units perpendicular** to the centreline — outside the drawn 6-wide line, inside the transparent 18-wide one — placed the road and handed off to player 2. The intercepted event confirmed the hit element was the transparent hit line.
+
+**Earlier hypotheses, both disconfirmed and recorded so they aren't re-tried:** (a) *the roll-before-act gate leaking into setup* — no: `gameActions.js:246` already reads `phase === 'play' && dice === null`, `App.jsx:366` computes `preRoll` with a leading `phase === 'play'`, and `placeSettlement(initialGameState, 0, 0)` succeeds in isolation; (b) *a stale `suppressClickRef`* — no: the failure reproduces on a completely fresh board with zero pan/zoom, and that flag is only ever set by a drag or pinch. Known bug #16 above remains an unreproduced latent edge case, untouched by this fix.
+
+Regression coverage: `turnlock` drives all 8 setup placements with `dice === null` for all 4 players. Note that this is a rendering/hit-testing bug, so the Node suite cannot catch it — the pure-function path was never broken.
 
 *Verified in Chrome this session (zoom/pan + audio):* driven live against `npm run dev`, not just unit-tested.
 - **Click accuracy under zoom/pan** — at every stop of a full zoom sweep (fit, 156%, 182%, 287%, 300% max, 50% min, via both mouse-wheel and `ctrlKey` trackpad-pinch events) and after panning, a hit-test at each element's on-screen centre resolved back to that same element for **all 54 intersections and all 72 edges** that were inside the frame. Confirmed end-to-end with real OS-level mouse input: a real click at 156% zoom landed exactly on the intended road slot and placed the road.
