@@ -632,3 +632,7 @@
   border: 1px solid var(--g-border);
   border-radius: 10px;
 }
+a.g-btn {
+  display: inline-block;
+  text-decoration: none;
+}

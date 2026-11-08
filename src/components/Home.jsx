@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 // Landing screen: start a game, open the board editor, or load one.
-export default function Home({ onNewGame, onEditor }) {
+export default function Home({ error, onNewGame, onEditor }) {
   const [balanced, setBalanced] = useState(true)
   return (
     <div className="g-app">
@@ -13,6 +13,7 @@ export default function Home({ onNewGame, onEditor }) {
             not just play them. Build any board, set up any position, control the dice, and replay or
             branch any game on one shared screen.
           </p>
+          {error && <ul className="g-errors"><li>{error}</li></ul>}
 
           <section className="g-side-section">
             <strong>New game</strong>
