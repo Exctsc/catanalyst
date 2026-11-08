@@ -4,8 +4,8 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 614 assertions, 0
-> failures across 29 suites. Build and lint are clean. The full product was verified end to end
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 629 assertions, 0
+> failures across 30 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
 ---
@@ -29,6 +29,7 @@ src/
     Home.jsx                 new game (board + dice mode), saved games (resume/delete), board editor, import
     BoardEditor.jsx          per-hex terrain/number, per-port type, validation + free mode, share code, start
     DiceSetup.jsx            dice-mode picker used by Home and the editor
+    FilePicker.jsx           styled button standing in for a native file input
     GameScreen.jsx           the play screen + sandbox panel, replay panel, analysis tab, trade UI
     HexBoard.jsx             SVG board; renders only from gameRules geometry + gameState.board
     BoardViewport.jsx        zoom/pan frame around the board (CSS transform)
@@ -44,6 +45,7 @@ src/
     sandbox.js               position-editor edits as actions, and `resume`
     saveFile.js              export/import format, autosave library (de)serialisation
     analysis.js              pips, expected income, roll histogram, income breakdown
+    boardImage.js            screenshot tracing: colour → terrain, two-click alignment
     viewport.js              zoom/pan maths
   audio/                     synthesized Web Audio cues + state-diff → cue mapping
 tests/                       *.test.mjs suites (npm test runs each with node) + bot.mjs
@@ -114,6 +116,13 @@ none).
 - **Board generator**: random, or balanced (no adjacent 6/8, no adjacent equal numbers).
 - **Board editor**: click a hex for terrain + number, click a port for its type; validation against
   standard counts with a free-mode toggle; start a game from it.
+- **Board from a screenshot** (added after the run, at Tony's request): on Home or in the editor,
+  load a jpg/png; the board turns see-through with white outlines over it; click the centre of the
+  top-left hex, then the bottom-right hex (`alignFromHexes` in `boardImage.js` turns those two
+  image points into a placement); each hex is then sampled on a ring at 55% of its radius, the
+  median colour matched in OKLab to reference shades (`classifyColor`), and the terrain filled in.
+  Our number tokens hide while the image is shown so the screenshot's own numbers can be read;
+  numbers and ports are set by hand. Verified in the browser on a real jpg: all 19 hexes right.
 - **Board codes**: `1` + 27 base64url chars (7 bits per hex, 3 per port); `?board=<code>` opens it
   in the editor; Share section with code field, Copy link and Open link.
 - **Dice modes** chosen at start: Random; Balanced (36-combination deck, reshuffled when fewer
@@ -144,14 +153,15 @@ none).
 
 ## Tests (`npm test`)
 
-29 suites, 614 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
+30 suites, 629 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
 `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound`. Added in
 the finish run: `board` (state-owned layout), `roadblock`, `connectivity`, `supply`,
 `playerindex`, `turncounter`, `playertrade`, `engine` (rng, dispatch, full scripted game twice +
 replay), `boardgen` (400 seeds; validation), `boardcode` (300 boards round-trip, malformed codes),
 `dice` (balanced distribution over 3,600 rolls, scripted queue, mid-game edits replay), `sandbox`,
 `replay` (stepping, jump-to-turn, branching), `savefile` (round trip, 13 malformed-file cases,
-tolerant library parsing), `analysis`.
+tolerant library parsing), `analysis`. Added after the run: `boardimage` (colour classification,
+whole synthetic screenshots with tokens, pieces and noise, two-click alignment).
 
 Fixture changes made because a rule changed (no assertion was weakened): play-phase settlement
 fixtures in `win` and `longestroad` gained a road to the spot (connectivity rule); the city-win
@@ -208,7 +218,11 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 9. **Sound cues come from state diffs**, so bank and player trades play their cue explicitly.
 10. **Copy link** depends on clipboard permission; when refused (e.g. some embedded browsers) the
     button stays as is, and the code field and Open link still work.
-11. The game screen is desktop-first; narrow screens work but are cramped.
+11. The game screen is desktop-first; narrow screens work but are cramped. Below 1100px the
+    header brand shows only the ⬡ icon so the status chip keeps its room.
+12. **Screenshot tracing reads terrain only, from colour, and assumes the standard orientation**
+    (rows of 3-4-5-4-3, pointy-top hexes). A themed or rotated board, or heavy pieces covering a
+    hex, can misread a hex; the user corrects it in the editor. Numbers and ports are manual.
 
 ---
 
@@ -228,6 +242,9 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 - **Export/import format**: `{ format: 'catanalyst-game', version: 1, name, options: { seed, board, diceMode, diceQueue }, actions }`. Import fully replays the actions, so an illegal move is rejected with the failing action named.
 - **Analysis numbers**: pip totals are structural (the robber is ignored), while "expected cards per roll" skips the robbed hex and ignores bank shortages. Income is attributed by the action that caused each hand change; spending on builds, cards given in trades and sandbox edits are not counted.
 - **Native `<select>` dropdowns** were driven with the browser tool's form input during verification (the preview pane cannot drive a native select popup with clicks or keys). Board clicks always used real pointer travel.
+
+- **Fonts were enlarged after the run at Tony's request** (CSS sizes ~15% up, Home larger still), an explicit exception to "no restyling".
+- **The Home file import is relabelled "Open a Catanalyst game file"**: online platforms don't export games, so it is presented as moving Catanalyst's own exports between browsers, and "Board from a screenshot" is the way in for online games.
 
 **Earlier sessions (still current)**
 - The dev deck is the standard 25 (14 Knight, 5 VP, 2 each Road Building / Year of Plenty / Monopoly).

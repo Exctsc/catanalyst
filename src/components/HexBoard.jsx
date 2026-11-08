@@ -186,7 +186,7 @@ function RobberMarker({ cx, cy }) {
   );
 }
 
-export default function HexBoard({ board, pipLabels = null, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
+export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLabels = null, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
   const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
@@ -204,6 +204,10 @@ export default function HexBoard({ board, pipLabels = null, placements = [], roa
       viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
       style={{ display: 'block' }}
     >
+      {/* Board editor tracing: a screenshot drawn under the hexes, in board units. */}
+      {underlay && (
+        <image href={underlay.href} x={underlay.x} y={underlay.y} width={underlay.width} height={underlay.height} preserveAspectRatio="none" pointerEvents="none" />
+      )}
       {hexes.map(({ x, y, resource, number }, i) => (
         <g
           key={i}
@@ -214,10 +218,12 @@ export default function HexBoard({ board, pipLabels = null, placements = [], roa
           <polygon
             points={hexPoints(i)}
             fill={RESOURCE_COLORS[resource]}
-            stroke={selectedHex === i ? '#fff' : '#333'}
+            fillOpacity={hexOpacity}
+            stroke={selectedHex === i || hexOpacity < 1 ? '#fff' : '#333'}
             strokeWidth={selectedHex === i ? 4 : 2}
           />
-          {number !== null && <Token cx={x} cy={y} number={number} />}
+          {/* While tracing a screenshot its own tokens show through instead. */}
+          {number !== null && hexOpacity === 1 && <Token cx={x} cy={y} number={number} />}
           {robberHex === i && <RobberMarker cx={x} cy={y} />}
         </g>
       ))}

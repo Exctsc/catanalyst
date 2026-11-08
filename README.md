@@ -29,6 +29,9 @@ have had analysis boards for decades. Catan players have screenshots.
   (5 settlements, 4 cities, 15 roads), and a win at 10 VP with hidden VP cards.
 - **Board generator**: standard random boards, or **balanced** boards with no touching
   6/8 and no touching equal numbers.
+- **Board from a screenshot**: load a screenshot of an online game's board, click the
+  top-left and bottom-right hexes to line it up, and the terrain is read from the image's colours.
+  You set the numbers and ports, then study or play the board here. Runs entirely in the browser.
 - **Board editor**: set every hex's terrain and number and every port's type. Validates
   against standard counts, with a free mode for custom layouts.
 - **Shareable board codes**: every board packs into a 28-character code;
@@ -40,8 +43,9 @@ have had analysis boards for decades. Catan players have screenshots.
   from that position.
 - **Replay and branching**: step through every action, jump to any turn, and "play from
   here" to branch a new game while the original stays intact.
-- **Save, load, export**: games autosave in the browser; export and import them as
-  `.json` (seed + board + actions). Imports are fully replayed and validated.
+- **Save, load, export**: games autosave in the browser; export a game as `.json` (seed +
+  board + actions) to move it to another browser or send it to someone, and open it there.
+  Imports are fully replayed and validated.
 - **Analysis tab**: pip values on every open intersection, each player's pips and
   expected cards per roll, a histogram of rolled totals against the 2d6 expectation,
   and an income breakdown (rolls, setup, trades, dev cards, steals; losses to the robber,
@@ -84,7 +88,7 @@ publishes `dist`, and rewrites every path to the app so board links work.
   steals, the dev deck shuffle, random boards) comes from a counter-based seeded PRNG whose
   seed and position live in game state. A game is just `{ options, actions }`, which is what
   makes replay, branching, autosave and export cheap and exact.
-- **Tests**: 29 Node suites (`tests/*.test.mjs`, about 600 assertions). These include a
+- **Tests**: 30 Node suites (`tests/*.test.mjs`, about 630 assertions). These include a
   scripted bot that plays complete games, which must replay to a deep-equal state.
 - The SVG board sits inside a CSS-transformed viewport, so hit-testing stays exact at
   any zoom.

@@ -655,9 +655,9 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
   return (
     <div className="g-app">
       <header className="g-header">
-        <button className="g-brand" onClick={onHome} title="Home">⬡ Catanalyst</button>
+        <button className="g-brand" onClick={onHome} title="Home" aria-label="Home">⬡<span className="g-brand-text"> Catanalyst</span></button>
         <span className="g-turn" style={{ color: currentPlayer.colour }}>{currentPlayer.name}'s turn</span>
-        <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`} · {DICE_LABELS[gameState.diceMode].split(' (')[0]} dice</span>
+        <span className="g-phase">{isSetup ? 'Setup' : `Turn ${gameState.turn}`} · 🎲 {DICE_LABELS[gameState.diceMode].split(' (')[0]}</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`} title={status}>{status}</span>}
           {!sandbox && !replaying && (

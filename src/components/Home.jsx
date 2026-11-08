@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import DiceSetup from './DiceSetup'
+import FilePicker from './FilePicker'
 import { diceOptions } from '../game/dice'
 
-// Landing screen: start a game, open the board editor, or load one.
-export default function Home({ error, games = [], onResume, onDelete, onImport, onNewGame, onEditor }) {
+// Landing screen: start a game, bring in a board, resume or open a game.
+export default function Home({ error, games = [], onResume, onDelete, onImport, onNewGame, onEditor, onScreenshot }) {
   const [balanced, setBalanced] = useState(true)
   const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
   const options = diceOptions(dice)
@@ -33,6 +34,15 @@ export default function Home({ error, games = [], onResume, onDelete, onImport, 
             </button>
           </section>
 
+          <section className="g-side-section">
+            <strong>Board from a screenshot</strong>
+            <span className="g-dim">
+              Playing online? Load a screenshot of the board, line it up, and the terrain fills in.
+              You add the numbers and ports, then study or play it here.
+            </span>
+            <FilePicker label="Choose screenshot" accept="image/*" onFile={onScreenshot} />
+          </section>
+
           {games.length > 0 && (
             <section className="g-side-section">
               <strong>Your games</strong>
@@ -58,20 +68,9 @@ export default function Home({ error, games = [], onResume, onDelete, onImport, 
           </section>
 
           <section className="g-side-section">
-            <strong>Load / import</strong>
-            <span className="g-dim">Games autosave in this browser (listed above). Import a game exported as .json from any browser.</span>
-            <label className="g-field">
-              <input
-                type="file"
-                accept=".json,application/json"
-                aria-label="Import game file"
-                onChange={async e => {
-                  const file = e.target.files?.[0]
-                  e.target.value = ''
-                  if (file) onImport(await file.text())
-                }}
-              />
-            </label>
+            <strong>Open a Catanalyst game file</strong>
+            <span className="g-dim">Games autosave in this browser. To move one to another browser or send it to someone, use Export in the game, then open the .json file here.</span>
+            <FilePicker label="Open game file" accept=".json,application/json" onFile={async file => onImport(await file.text())} />
           </section>
         </div>
       </div>

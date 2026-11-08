@@ -50,6 +50,7 @@ export default function App() {
   const [games, setGames] = useState(library.games)
   const [currentId, setCurrentId] = useState(library.currentId)
   const [importError, setImportError] = useState(null)
+  const [screenshot, setScreenshot] = useState(null) // image file handed from Home to the editor
 
   useEffect(() => {
     try {
@@ -93,7 +94,7 @@ export default function App() {
   }
 
   if (screen === 'editor') {
-    return <BoardEditor initialBoard={linked.board ?? current?.game.state.board ?? randomBoard(true)} onStart={startGame} onHome={() => setScreen('home')} />
+    return <BoardEditor initialBoard={linked.board ?? current?.game.state.board ?? randomBoard(true)} initialImageFile={screenshot} onStart={startGame} onHome={() => { setScreenshot(null); setScreen('home') }} />
   }
   if (screen === 'game' && current) {
     return <GameScreen key={current.id} game={current.game} setGame={setGame} onHome={() => setScreen('home')} onBranch={branch} onExport={handleExport} />
@@ -109,7 +110,8 @@ export default function App() {
         if (id === currentId) setCurrentId(null)
       }}
       onNewGame={({ balanced, ...dice }) => startGame({ board: randomBoard(balanced), ...dice })}
-      onEditor={() => setScreen('editor')}
+      onEditor={() => { setScreenshot(null); setScreen('editor') }}
+      onScreenshot={file => { setScreenshot(file); setScreen('editor') }}
     />
   )
 }

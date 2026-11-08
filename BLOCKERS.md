@@ -20,6 +20,11 @@ autonomous attempt had been refused by the permission classifier). Later commits
 
 ## Worth a look (not blockers)
 
+- **Board from a screenshot** was tested on a jpg of Catanalyst's own board (all 19 hexes read
+  correctly). Try it with a real Colonist screenshot: if a terrain misreads, it's a one-line fix
+  adding that shade to `REFERENCE` in `src/game/boardImage.js`. It assumes the board's rows run
+  3-4-5-4-3 left to right, as in Catanalyst; if Colonist shows yours rotated, tell me.
+
 - **Copy link** in the board editor uses the clipboard API. In the desktop app's preview pane the
   write was refused (no clipboard permission), so the button just stays "Copy link"; the code field
   and "Open link" work everywhere. Check it once in a normal Chrome tab after deploying.
