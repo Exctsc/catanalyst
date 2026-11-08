@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { applyAction, replay, turnStarts, branchGame } from '../game/engine'
-import { portRate } from '../game/gameActions'
+import { applyAction, replay, turnStarts, branchGame, dispatch, legalSpots, BUILD_COSTS } from '../game/engine'
+import { PIECE_LIMITS } from '../game/gameActions'
 import { parseDiceScript, formatDiceQueue, DICE_LABELS } from '../game/dice'
 import {
   openIntersectionPips, playerPips, expectedPerRoll, rollHistogram, incomeBreakdown, GAIN_KEYS, LOSS_KEYS,
@@ -8,6 +8,10 @@ import {
 import { BOARD_WIDTH, BOARD_HEIGHT } from '../game/gameRules'
 import HexBoard from './HexBoard'
 import BoardViewport from './BoardViewport'
+import { ResourceCard, CardPicker, Bundle, TradePanel } from './Cards'
+import {
+  Settlement, City, TradeIcon, DevCardIcon, RoadIcon, DiceIcon, HourglassIcon, Die,
+} from './BoardArt'
 import {
   playSound, getAudioSettings, subscribeAudioSettings, setAudioMuted, setAudioVolume,
 } from '../audio/sounds'
@@ -92,26 +96,19 @@ function ResourceChip({ resource, size = 16 }) {
 }
 
 function DiscardPanel({ player, required, onConfirm }) {
-  const [counts, setCounts] = useState({ brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 })
+  const [counts, setCounts] = useState(EMPTY_HAND)
   const total = RESOURCES.reduce((sum, r) => sum + counts[r], 0)
   return (
-    <div className="g-modal-row">
-      <span><strong style={{ color: player.colour }}>{player.name}</strong> must discard {required}:</span>
-      {RESOURCES.map(r => (
-        <label key={r}>
-          <ResourceChip resource={r} size={14} />
-          <input
-            type="number"
-            min={0}
-            max={player.resources[r]}
-            value={counts[r]}
-            onChange={e => setCounts({ ...counts, [r]: Math.max(0, Math.min(player.resources[r], +e.target.value || 0)) })}
-          />
-        </label>
-      ))}
-      <button className="g-btn g-btn-primary" disabled={total !== required} onClick={() => onConfirm(counts)}>
-        Discard {total}/{required}
-      </button>
+    <div className="g-float-panel">
+      <div className="g-panel-head">
+        <span><strong style={{ color: player.colour }}>{player.name}</strong> must discard {required}: click the cards to throw away</span>
+      </div>
+      <CardPicker counts={counts} max={player.resources} cap={required} onChange={setCounts} />
+      <div className="g-trade-actions">
+        <button className="g-btn g-btn-primary" disabled={total !== required} onClick={() => onConfirm(counts)}>
+          Discard {total}/{required}
+        </button>
+      </div>
     </div>
   )
 }
@@ -136,27 +133,6 @@ function CountInputs({ counts, max, onChange, keys = RESOURCES }) {
       />
     </label>
   ))
-}
-
-// Hotseat trade builder: the current player offers cards to one opponent.
-function PlayerTradePanel({ players, currentPlayerIndex, onOffer }) {
-  const opponents = players.map((_, i) => i).filter(i => i !== currentPlayerIndex)
-  const [to, setTo] = useState(opponents[0])
-  const [give, setGive] = useState(EMPTY_HAND)
-  const [get, setGet] = useState(EMPTY_HAND)
-  return (
-    <div className="g-modal-row">
-      <span>Offer</span>
-      <select value={to} onChange={e => setTo(+e.target.value)} aria-label="Trade partner">
-        {opponents.map(i => <option key={i} value={i}>{players[i].name}</option>)}
-      </select>
-      <strong>give</strong>
-      <CountInputs counts={give} max={players[currentPlayerIndex].resources} onChange={setGive} />
-      <strong>get</strong>
-      <CountInputs counts={get} onChange={setGet} />
-      <button className="g-btn g-btn-primary" onClick={() => onOffer(to, give, get)}>Offer</button>
-    </div>
-  )
 }
 
 const SANDBOX_TOOLS = [
@@ -367,10 +343,6 @@ function AnalysisPanel({ state, history, showPips, onTogglePips }) {
   )
 }
 
-function describeBundle(bundle) {
-  return Object.entries(bundle).map(([r, n]) => `${n} ${r}`).join(' + ')
-}
-
 // Scripted dice: show and replace the queue of upcoming rolls mid-game.
 function ScriptedDice({ queue, onSet }) {
   const [draft, setDraft] = useState(formatDiceQueue(queue))
@@ -385,6 +357,25 @@ function ScriptedDice({ queue, onSet }) {
       {typeof parsed === 'string' && <ul className="g-errors"><li>{parsed}</li></ul>}
       <button className="g-btn" disabled={typeof parsed === 'string'} onClick={() => onSet(parsed)}>Set queue</button>
     </div>
+  )
+}
+
+// One button in the action bar: a picture, a count badge, a label, and the
+// cost shown as cards on hover.
+function ActionTile({ label, badge, active, disabled, onClick, cost, primary, children }) {
+  return (
+    <button
+      className={`g-tile${active ? ' g-tile-active' : ''}${primary ? ' g-tile-primary' : ''}`}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={active === undefined ? undefined : active}
+    >
+      <svg viewBox="-20 -20 40 40" width={42} height={42} aria-hidden="true">{children}</svg>
+      {badge != null && <span className="g-tile-badge">{badge}</span>}
+      <span className="g-tile-label">{label}</span>
+      {cost && <span className="g-tile-tip">Costs <Bundle cards={cost} /></span>}
+    </button>
   )
 }
 
@@ -477,8 +468,6 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
   const gameState = replaying ? replayStates[replayAt] : game.state
   const [showPips, setShowPips] = useState(false)
   const [message, setMessage] = useState(null)
-  const [tradeGive, setTradeGive] = useState('brick')
-  const [tradeReceive, setTradeReceive] = useState('wood')
   const [tab, setTab] = useState('log')
   // Replayed history for the Analysis tab, cut at the replay position if any.
   const history = useMemo(() => {
@@ -488,11 +477,9 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
     return { states: states.slice(0, at + 1), actions: game.actions.slice(0, at) }
   }, [tab, replayStates, replaying, replayAt, game.options, game.actions])
   const [tradeOpen, setTradeOpen] = useState(false)
-  const [buildOpen, setBuildOpen] = useState(false)
+  const [buildMode, setBuildMode] = useState(null) // null | 'road' | 'settlement' | 'city'
   const [devPanel, setDevPanel] = useState(null) // null | 'yearOfPlenty' | 'monopoly'
-  const [yopA, setYopA] = useState('brick')
-  const [yopB, setYopB] = useState('wood')
-  const [monoPick, setMonoPick] = useState('brick')
+  const [yop, setYop] = useState(EMPTY_HAND)
 
   useGameSounds(gameState)
 
@@ -543,7 +530,8 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
       return
     }
     const ownSettlement = currentPlayer.settlements.some(s => s.intersectionIndex === intersectionIndex)
-    act({ type: gameState.phase !== 'setup' && ownSettlement ? 'upgradeToCity' : 'placeSettlement', player: me, vertex: intersectionIndex })
+    const city = buildMode === 'city' || (buildMode !== 'settlement' && gameState.phase !== 'setup' && ownSettlement)
+    if (act({ type: city ? 'upgradeToCity' : 'placeSettlement', player: me, vertex: intersectionIndex })) setBuildMode(null)
   }
 
   function handleEdgeClick(edgeIndex) {
@@ -552,14 +540,16 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
       else if (sandbox.tool === 'remove') sandboxEdit({ op: 'setRoad', edge: edgeIndex, player: null })
       return
     }
-    act({ type: 'placeRoad', player: me, edge: edgeIndex })
+    if (act({ type: 'placeRoad', player: me, edge: edgeIndex })) setBuildMode(null)
   }
 
   // The one cue not derived from the state diff: a bank trade only shuffles
   // cards between a hand and the bank, which is indistinguishable from paying
   // a build cost, so it's announced from the handler that knows what happened.
-  function handleBankTrade() {
-    if (act({ type: 'bankTrade', player: me, give: tradeGive, receive: tradeReceive })) playSound('trade')
+  function handleBankTrade(plan) {
+    const ok = act(plan)
+    if (ok) playSound('trade')
+    return ok
   }
 
   function handleOffer(to, give, get) {
@@ -596,17 +586,18 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
   }
 
   function handlePlayYearOfPlenty() {
-    if (act({ type: 'playYearOfPlenty', player: me, picks: [yopA, yopB] })) setDevPanel(null)
+    const picks = RESOURCES.flatMap(r => Array(yop[r]).fill(r))
+    if (act({ type: 'playYearOfPlenty', player: me, picks })) { setDevPanel(null); setYop(EMPTY_HAND) }
   }
 
-  function handlePlayMonopoly() {
-    if (act({ type: 'playMonopoly', player: me, resource: monoPick })) setDevPanel(null)
+  function handlePlayMonopoly(resource) {
+    if (act({ type: 'playMonopoly', player: me, resource })) setDevPanel(null)
   }
 
   function handleEndTurn() {
     setMessage(null)
     setTradeOpen(false)
-    setBuildOpen(false)
+    setBuildMode(null)
     setDevPanel(null)
     act({ type: 'endTurn' })
   }
@@ -652,6 +643,36 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
   const showActions = !robber && !winner && !roadBuilding && !sandbox && !replaying
   const interactive = !replaying
 
+  // Where each piece could go right now; the board glows the chosen kind's spots.
+  const spots = useMemo(() => (replaying || sandbox ? null : {
+    road: legalSpots(gameState, 'road'),
+    settlement: legalSpots(gameState, 'settlement'),
+    city: legalSpots(gameState, 'city'),
+  }), [gameState, replaying, sandbox])
+  const mode = buildMode && showActions && spots?.[buildMode].length ? buildMode : null
+  const spotKind = isSetup ? gameState.setup.expecting : roadBuilding ? 'road' : mode
+  const glow = spots && spotKind ? spots[spotKind] : []
+  const canAffordDev = canBuyDev && typeof dispatch(gameState, { type: 'buyDevCard', player: me }) !== 'string'
+  const piecesLeft = {
+    road: PIECE_LIMITS.roads - currentPlayer.roads.length,
+    settlement: PIECE_LIMITS.settlements - currentPlayer.settlements.length,
+    city: PIECE_LIMITS.cities - currentPlayer.cities.length,
+  }
+  const toggleBuild = kind => { setBuildMode(m => (m === kind ? null : kind)); setTradeOpen(false); setDevPanel(null) }
+
+  // One line telling the player what to do next.
+  let prompt = null
+  if (showActions) {
+    if (isSetup) prompt = `Place a ${gameState.setup.expecting}: click a glowing ${gameState.setup.expecting === 'road' ? 'edge' : 'corner'}`
+    else if (preRoll) prompt = 'Roll the dice to start your turn'
+    else if (mode === 'road') prompt = 'Click a glowing edge to build a road'
+    else if (mode === 'settlement') prompt = 'Click a glowing corner to build a settlement'
+    else if (mode === 'city') prompt = 'Click a glowing settlement to make it a city'
+    else prompt = 'Build, trade, or end your turn'
+  } else if (robber?.stage === 'move' && interactive && !sandbox) {
+    prompt = `${currentPlayer.name}: click a hex to move the robber there`
+  }
+
   return (
     <div className="g-app">
       <header className="g-header">
@@ -663,10 +684,10 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
           {!sandbox && !replaying && (
             <>
               <button className="g-btn" onClick={onExport}>Export</button>
-              <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
+              <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
                 Replay
               </button>
-              <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
+              <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
                 Edit position
               </button>
             </>
@@ -686,6 +707,8 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
               roads={roadPlacements}
               cities={cityPlacements}
               robberHex={gameState.robberHex}
+              highlightVertices={spots ? (spotKind && spotKind !== 'road' ? glow : []) : undefined}
+              highlightEdges={spots ? (spotKind === 'road' ? glow : []) : undefined}
               onIntersectionClick={interactive ? handleIntersectionClick : undefined}
               onEdgeClick={interactive ? handleEdgeClick : undefined}
               onHexClick={interactive && (sandbox ? sandbox.tool === 'robber' : robber?.stage === 'move') ? handleHexClick : undefined}
@@ -757,26 +780,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
       </div>
 
       <footer className="g-tray">
-        <div className="g-hand">
-          {RESOURCES.map(r => (
-            <div key={r} className="g-card">
-              <span className="g-card-chip" style={{ background: RESOURCE_COLOR[r] }} />
-              <span className="g-card-count">{currentPlayer.resources[r]}</span>
-              <span className="g-card-label">{r}</span>
-            </div>
-          ))}
-        </div>
-
-        {!isSetup && !sandbox && !replaying && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
-
-        <div className="g-actions">
-          {gameState.dice && (
-            <span className="g-dice">
-              🎲 {gameState.dice.total === null ? 'rolled' : `${gameState.dice.die1} + ${gameState.dice.die2} = ${gameState.dice.total}`}
-              {gameState.dice.isRobber && <span className="g-dice-robber">Robber!</span>}
-            </span>
-          )}
-
+        <div className="g-tray-float">
           {robber?.stage === 'discard' && interactive && (
             <DiscardPanel
               key={robber.pending[0]}
@@ -787,115 +791,140 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
           )}
 
           {robber?.stage === 'steal' && interactive && (
-            <div className="g-modal-row">
-              <strong>Steal 1 card from:</strong>
-              {robber.candidates.map(i => (
-                <button
-                  key={i}
-                  className="g-btn"
-                  style={{ color: gameState.players[i].colour, fontWeight: 700 }}
-                  onClick={() => handleSteal(i)}
-                >
-                  {gameState.players[i].name}
-                </button>
-              ))}
+            <div className="g-float-panel">
+              <div className="g-panel-head"><strong>Steal 1 card from:</strong></div>
+              <div className="g-trade-actions">
+                {robber.candidates.map(i => (
+                  <button key={i} className="g-btn" onClick={() => handleSteal(i)}>
+                    <span className="g-swatch" style={{ background: gameState.players[i].colour }} /> {gameState.players[i].name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
           {roadBuilding && interactive && (
-            <div className="g-modal-row">
-              <strong style={{ color: currentPlayer.colour }}>
-                Place {roadBuilding.remaining} free road{roadBuilding.remaining > 1 ? 's' : ''}
-              </strong>
-              <span style={{ color: 'var(--g-text-dim)' }}>— click a road slot on the board</span>
-              <button className="g-btn" onClick={() => act({ type: 'skipRoadBuilding', player: me })}>Skip</button>
+            <div className="g-float-panel">
+              <div className="g-panel-head">
+                <strong style={{ color: currentPlayer.colour }}>
+                  Place {roadBuilding.remaining} free road{roadBuilding.remaining > 1 ? 's' : ''}
+                </strong>
+                <span className="g-dim">Click a glowing edge</span>
+                <button className="g-btn" onClick={() => act({ type: 'skipRoadBuilding', player: me })}>Skip</button>
+              </div>
             </div>
           )}
 
           {devPanel === 'yearOfPlenty' && showActions && (
-            <div className="g-popover">
-              <span>Year of Plenty — take 2:</span>
-              <select value={yopA} onChange={e => setYopA(e.target.value)}>
-                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <select value={yopB} onChange={e => setYopB(e.target.value)}>
-                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <button className="g-btn g-btn-primary" onClick={handlePlayYearOfPlenty}>Take</button>
-              <button className="g-btn" onClick={() => setDevPanel(null)}>Cancel</button>
+            <div className="g-float-panel">
+              <div className="g-panel-head">
+                <strong>Year of Plenty</strong>
+                <span className="g-dim">Pick any 2 cards from the bank</span>
+                <button className="g-panel-close" onClick={() => setDevPanel(null)} aria-label="Cancel">×</button>
+              </div>
+              <CardPicker counts={yop} cap={2} onChange={setYop} />
+              <div className="g-trade-actions">
+                <button className="g-btn g-btn-primary" disabled={RESOURCES.reduce((n, r) => n + yop[r], 0) !== 2} onClick={handlePlayYearOfPlenty}>Take them</button>
+              </div>
             </div>
           )}
 
           {devPanel === 'monopoly' && showActions && (
-            <div className="g-popover">
-              <span>Monopoly — name a resource:</span>
-              <select value={monoPick} onChange={e => setMonoPick(e.target.value)}>
-                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <button className="g-btn g-btn-primary" onClick={handlePlayMonopoly}>Claim all</button>
-              <button className="g-btn" onClick={() => setDevPanel(null)}>Cancel</button>
+            <div className="g-float-panel">
+              <div className="g-panel-head">
+                <strong>Monopoly</strong>
+                <span className="g-dim">Pick a resource: every player gives you all of theirs</span>
+                <button className="g-panel-close" onClick={() => setDevPanel(null)} aria-label="Cancel">×</button>
+              </div>
+              <div className="g-rcards">
+                {RESOURCES.map(r => <ResourceCard key={r} resource={r} onAdd={() => handlePlayMonopoly(r)} label={`Claim all ${r}`} />)}
+              </div>
             </div>
           )}
 
           {offer && interactive && (
-            <div className="g-modal-row">
-              <span>
-                <strong style={{ color: gameState.players[offer.from].colour }}>{gameState.players[offer.from].name}</strong>
-                {' offers '}
-                <strong style={{ color: gameState.players[offer.to].colour }}>{gameState.players[offer.to].name}</strong>
-                {`: ${describeBundle(offer.give)} for ${describeBundle(offer.get)}`}
-              </span>
-              <button className="g-btn g-btn-primary" onClick={handleAcceptTrade}>
-                {gameState.players[offer.to].name}: Accept
-              </button>
-              <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.to })}>Decline</button>
-              <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.from })}>Withdraw</button>
+            <div className="g-float-panel">
+              <div className="g-panel-head">
+                <span>
+                  <strong style={{ color: gameState.players[offer.from].colour }}>{gameState.players[offer.from].name}</strong>
+                  {' offers '}
+                  <strong style={{ color: gameState.players[offer.to].colour }}>{gameState.players[offer.to].name}</strong>
+                </span>
+              </div>
+              <div className="g-offer">
+                <span className="g-dim">gives</span><Bundle cards={offer.give} /><span className="g-dim">for</span><Bundle cards={offer.get} />
+              </div>
+              <div className="g-trade-actions">
+                <button className="g-btn g-btn-primary" onClick={handleAcceptTrade}>
+                  {gameState.players[offer.to].name}: Accept
+                </button>
+                <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.to })}>Decline</button>
+                <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.from })}>Withdraw</button>
+              </div>
             </div>
           )}
 
           {tradeOpen && showActions && !preRoll && !offer && (
-            <PlayerTradePanel
+            <TradePanel
               key={gameState.currentPlayerIndex}
-              players={gameState.players}
-              currentPlayerIndex={gameState.currentPlayerIndex}
+              state={gameState}
+              onBank={handleBankTrade}
               onOffer={handleOffer}
+              onClose={() => setTradeOpen(false)}
             />
           )}
+        </div>
 
-          {tradeOpen && showActions && !preRoll && (
-            <div className="g-popover">
-              <strong>Bank</strong>
-              <span>Give {portRate(gameState, gameState.currentPlayerIndex, tradeGive)}</span>
-              <select value={tradeGive} onChange={e => setTradeGive(e.target.value)}>
-                {RESOURCES.map(r => (
-                  <option key={r} value={r}>
-                    {r} ({portRate(gameState, gameState.currentPlayerIndex, r)}:1)
-                  </option>
-                ))}
-              </select>
-              <span>for 1</span>
-              <select value={tradeReceive} onChange={e => setTradeReceive(e.target.value)}>
-                {RESOURCES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <button className="g-btn g-btn-primary" onClick={handleBankTrade}>Trade</button>
-            </div>
+        <div className="g-hand">
+          {RESOURCES.map(r => <ResourceCard key={r} resource={r} count={currentPlayer.resources[r]} />)}
+        </div>
+
+        {!isSetup && !sandbox && !replaying && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
+
+        <div className="g-actions">
+          {gameState.dice && (
+            <span className="g-dice" title={gameState.dice.total === null ? 'rolled' : `Rolled ${gameState.dice.total}`}>
+              {gameState.dice.total === null ? '🎲 rolled' : (
+                <>
+                  <svg viewBox="-24 -12 48 24" width={56} height={28} aria-hidden="true">
+                    <Die value={gameState.dice.die1} x={-11} r={10} />
+                    <Die value={gameState.dice.die2} x={11} r={10} />
+                  </svg>
+                  <span>{gameState.dice.total}</span>
+                </>
+              )}
+              {gameState.dice.isRobber && <span className="g-dice-robber">Robber!</span>}
+            </span>
           )}
 
-          {buildOpen && showActions && (
-            <div className="g-popover">
-              <span>Road: 1 brick + 1 wood · Settlement: brick+wood+wheat+sheep · City: 2 wheat + 3 ore · Dev card: ore+wheat+sheep.</span>
-              <span style={{ color: 'var(--g-text-dim)' }}>Click the board to build.</span>
+          {(showActions || prompt) && (
+            <div className="g-actionbar">
+              {prompt && <div className="g-prompt">{prompt}</div>}
+              {showActions && <div className="g-tiles">
+                <ActionTile label="Trade" active={tradeOpen} disabled={!canTradeOrBuild}
+                  onClick={() => { setTradeOpen(o => !o); setBuildMode(null); setDevPanel(null) }}>
+                  <TradeIcon />
+                </ActionTile>
+                <ActionTile label="Dev card" badge={gameState.devCardDeck.length} cost={BUILD_COSTS.devCard} disabled={!canAffordDev} onClick={handleBuyDev}>
+                  <DevCardIcon />
+                </ActionTile>
+                <ActionTile label="Road" badge={piecesLeft.road} cost={BUILD_COSTS.road} active={mode === 'road'}
+                  disabled={isSetup || !spots?.road.length} onClick={() => toggleBuild('road')}>
+                  <RoadIcon colour={currentPlayer.colour} />
+                </ActionTile>
+                <ActionTile label="Settlement" badge={piecesLeft.settlement} cost={BUILD_COSTS.settlement} active={mode === 'settlement'}
+                  disabled={isSetup || !spots?.settlement.length} onClick={() => toggleBuild('settlement')}>
+                  <g transform="scale(1.9)"><Settlement x={0} y={0} colour={currentPlayer.colour} /></g>
+                </ActionTile>
+                <ActionTile label="City" badge={piecesLeft.city} cost={BUILD_COSTS.city} active={mode === 'city'}
+                  disabled={isSetup || !spots?.city.length} onClick={() => toggleBuild('city')}>
+                  <g transform="scale(1.4)"><City x={0} y={0} colour={currentPlayer.colour} /></g>
+                </ActionTile>
+                {canRoll
+                  ? <ActionTile label="Roll dice" primary onClick={handleRoll}><DiceIcon /></ActionTile>
+                  : <ActionTile label="End turn" primary disabled={!canEndTurn} onClick={handleEndTurn}><HourglassIcon /></ActionTile>}
+              </div>}
             </div>
-          )}
-
-          {showActions && (
-            <>
-              <button className="g-btn g-btn-primary" onClick={handleRoll} disabled={!canRoll}>Roll Dice</button>
-              <button className="g-btn" onClick={() => { setTradeOpen(o => !o); setBuildOpen(false); setDevPanel(null) }} disabled={!canTradeOrBuild}>Trade</button>
-              <button className="g-btn" onClick={() => { setBuildOpen(o => !o); setTradeOpen(false); setDevPanel(null) }} disabled={!canTradeOrBuild}>Build</button>
-              <button className="g-btn" onClick={handleBuyDev} disabled={!canBuyDev}>Buy Dev ({gameState.devCardDeck.length})</button>
-              <button className="g-btn" onClick={handleEndTurn} disabled={!canEndTurn}>End Turn</button>
-            </>
           )}
         </div>
       </footer>

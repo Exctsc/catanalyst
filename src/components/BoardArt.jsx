@@ -138,3 +138,81 @@ export function Robber({ x, y }) {
     </g>
   );
 }
+
+const RESOURCE_TERRAIN = { brick: 'hills', wood: 'forest', ore: 'mountains', wheat: 'fields', sheep: 'pasture' };
+
+// A resource drawn as its terrain's picture, for cards and buttons.
+export function ResourceIcon({ resource, size = 28 }) {
+  return (
+    <svg width={size} height={size * 0.75} viewBox="-20 -15 40 30" aria-hidden="true">
+      <TerrainArt terrain={RESOURCE_TERRAIN[resource]} x={0} y={0} />
+    </svg>
+  );
+}
+
+// --- action bar icons, drawn in a 40×40 box centred on (0, 0)
+
+export function TradeIcon() {
+  return (
+    <g strokeLinejoin="round">
+      <rect x={-16} y={-15} width={14} height={19} rx={2} fill="#9fd08a" stroke={INK} strokeWidth={1.2} transform="rotate(-8 -9 -5)" />
+      <rect x={2} y={-4} width={14} height={19} rx={2} fill="#e39b78" stroke={INK} strokeWidth={1.2} transform="rotate(8 9 5)" />
+      <g fill="none" stroke="#f3f3f3" strokeWidth={2.2} strokeLinecap="round">
+        <path d="M1,-15 Q12,-16 13,-9" />
+        <path d="M-1,15 Q-12,16 -13,9" />
+      </g>
+      <path d="M9.5,-10 L16.5,-10 L13,-5 Z M-16.5,10 L-9.5,10 L-13,5 Z" fill="#f3f3f3" />
+    </g>
+  );
+}
+
+export function DevCardIcon() {
+  return (
+    <g>
+      <rect x={-11} y={-15} width={22} height={30} rx={3} fill="#5b4bb7" stroke={INK} strokeWidth={1.3} />
+      <rect x={-8} y={-12} width={16} height={24} rx={2} fill="none" stroke="#d9a441" strokeWidth={1.2} />
+      <text x={0} y={1} textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight={700} fill="#f6e7c1">?</text>
+    </g>
+  );
+}
+
+export function RoadIcon({ colour }) {
+  return (
+    <g transform="rotate(35)">
+      <rect x={-4} y={-17} width={8} height={34} rx={2} fill={colour} stroke={INK} strokeWidth={1.4} />
+      <rect x={-2.5} y={-15} width={2} height={30} rx={1} fill="#fff" opacity={0.3} />
+    </g>
+  );
+}
+
+const PIPS = {
+  1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+  5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]],
+};
+
+// One die face, 2·r wide, centred on (x, y).
+export function Die({ value, x = 0, y = 0, r = 10, rotate = 0 }) {
+  return (
+    <g transform={`translate(${x},${y}) rotate(${rotate})`}>
+      <rect x={-r} y={-r} width={2 * r} height={2 * r} rx={r * 0.28} fill="#fbfaf5" stroke={INK} strokeWidth={r * 0.12} />
+      {(PIPS[value] ?? []).map(([px, py], i) => (
+        <circle key={i} cx={px * r * 0.5} cy={py * r * 0.5} r={r * 0.17} fill={value === 1 ? '#c0392b' : INK} />
+      ))}
+    </g>
+  );
+}
+
+export function DiceIcon() {
+  return <g><Die value={5} x={-6} y={-5} r={9} rotate={-10} /><Die value={3} x={7} y={6} r={9} rotate={12} /></g>;
+}
+
+export function HourglassIcon() {
+  return (
+    <g strokeLinejoin="round">
+      <rect x={-11} y={-17} width={22} height={4} rx={1.5} fill="#7a5230" stroke={INK} strokeWidth={1.1} />
+      <rect x={-11} y={13} width={22} height={4} rx={1.5} fill="#7a5230" stroke={INK} strokeWidth={1.1} />
+      <path d="M-8,-13 L8,-13 Q8,-4 1.5,0 Q8,4 8,13 L-8,13 Q-8,4 -1.5,0 Q-8,-4 -8,-13 Z" fill="#dff1fb" stroke={INK} strokeWidth={1.1} />
+      <path d="M-5,-8 L5,-8 Q3,-3 0,-1 Q-3,-3 -5,-8 Z M0,3 L5.5,11 L-5.5,11 Z" fill="#e2b85a" />
+    </g>
+  );
+}

@@ -130,7 +130,7 @@ function edgeEndpoints(edgeIndex, shrink) {
   };
 }
 
-function RoadSlot({ edgeIndex, onEdgeClick }) {
+function RoadSlot({ edgeIndex, onEdgeClick, glow = false }) {
   const [hovered, setHovered] = useState(false);
   const { x1, y1, x2, y2 } = edgeEndpoints(edgeIndex, 0.62);
   return (
@@ -143,8 +143,9 @@ function RoadSlot({ edgeIndex, onEdgeClick }) {
     >
       <line
         x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={hovered ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)'}
-        strokeWidth={hovered ? 8 : 6}
+        className={glow && !hovered ? 'g-spot' : undefined}
+        stroke={hovered ? 'rgba(255,255,255,0.95)' : glow ? '#fff' : 'rgba(255,255,255,0.35)'}
+        strokeWidth={hovered || glow ? 8 : 6}
         strokeLinecap="round"
       />
       {/* Hit target only: a 6px line is thin to hit once fitZoom shrinks the
@@ -177,10 +178,12 @@ const VB_H = BOARD_HEIGHT;
 const VB_MIN_X = BOARD_MIN_X;
 const VB_MIN_Y = BOARD_MIN_Y;
 
-export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLabels = null, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
+export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLabels = null, placements = [], roads = [], cities = [], robberHex = null, highlightVertices, highlightEdges, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
   const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
+  // Legal spots to glow. Given an edge list, only those edges get road slots.
+  const glowEdges = highlightEdges ? new Set(highlightEdges) : null;
   const hexes = HEX_CENTERS.map(({ cx, cy }, i) => ({
     x: cx, y: cy, resource: board.tiles[i], number: board.numbers[i],
   }));
@@ -234,8 +237,8 @@ export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLa
       {EDGES.map((_, edgeIndex) => {
         const colour = roadMap.get(edgeIndex);
         if (colour) return <Road key={edgeIndex} edgeIndex={edgeIndex} colour={colour} />;
-        if (!onEdgeClick) return null;
-        return <RoadSlot key={edgeIndex} edgeIndex={edgeIndex} onEdgeClick={onEdgeClick} />;
+        if (!onEdgeClick || (glowEdges && !glowEdges.has(edgeIndex))) return null;
+        return <RoadSlot key={edgeIndex} edgeIndex={edgeIndex} onEdgeClick={onEdgeClick} glow={!!glowEdges} />;
       })}
       {VERTICES.map(({ x, y }, i) => {
         const cityColour = cityMap.get(i);
@@ -244,6 +247,17 @@ export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLa
         if (colour) return <Settlement key={i} x={x} y={y} colour={colour} />;
         return <circle key={i} cx={x} cy={y} r={4} fill="white" stroke="#333" strokeWidth={1.5} pointerEvents="none" />;
       })}
+      {highlightVertices && highlightVertices.map(v => (
+        <circle
+          key={`spot-${v}`}
+          className="g-spot"
+          cx={VERTICES[v].x} cy={VERTICES[v].y}
+          r={settlementMap.has(v) ? 14 : 8}
+          fill={settlementMap.has(v) ? 'none' : 'rgba(255,255,255,0.55)'}
+          stroke="#fff" strokeWidth={2.5}
+          pointerEvents="none"
+        />
+      ))}
       {/* Analysis overlay: pip value at each open intersection. Never clickable. */}
       {pipLabels && pipLabels.map(({ vertex, pips }) => (
         <g key={`pip-${vertex}`} pointerEvents="none">

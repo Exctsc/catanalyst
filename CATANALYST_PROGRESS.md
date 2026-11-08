@@ -4,8 +4,8 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 669 assertions, 0
-> failures across 32 suites. Build and lint are clean. The full product was verified end to end
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 688 assertions, 0
+> failures across 33 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
 ---
@@ -113,6 +113,18 @@ none).
 - **Player index validation** on every action ('Invalid player'), plus vertex/edge bounds.
 - **Turn counter** = round number, shown as "Turn N" in the header.
 
+**Play controls** (added after the run, at Tony's request): the bottom bar is a row of picture
+tiles (Trade, Dev card, Road, Settlement, City, Roll dice / End turn) with pieces left (or cards
+left in the deck) as a badge and the cost shown as cards on hover; a tile greys out when that
+move is impossible right now. Picking Road, Settlement or City makes exactly the legal spots
+glow on the board (`legalSpots` in `engine.js` asks `dispatch` about every edge or corner, so
+cost, supply, phase and placement rules all count); setup and Road Building glow automatically.
+A one-line prompt says what to do next. Trading is one panel of clickable resource cards
+(terrain pictures, port rates on your cards): pick what you give and get, then trade with the
+bank (`bankTradePlan` turns e.g. 8 brick for ore + wheat into two 4:1 trades) or offer it to a
+player. Discard, Year of Plenty and Monopoly use the same cards instead of number boxes and
+dropdowns.
+
 **Training features**
 - **Board generator**: random, or balanced (no adjacent 6/8, no adjacent equal numbers).
 - **Board editor**: click a hex for terrain + number, click a port for its type; validation against
@@ -180,7 +192,7 @@ none).
 
 ## Tests (`npm test`)
 
-32 suites, 669 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
+33 suites, 688 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
 `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound`. Added in
 the finish run: `board` (state-owned layout), `roadblock`, `connectivity`, `supply`,
 `playerindex`, `turncounter`, `playertrade`, `engine` (rng, dispatch, full scripted game twice +
@@ -191,7 +203,9 @@ tolerant library parsing), `analysis`. Added after the run: `boardimage` (colour
 whole synthetic screenshots with tokens, pieces and noise, two-click alignment) and `tokens`
 (synthetic number tokens in a 5x7 font: every number, square and round tokens, a pale decoy,
 blurred pip bars, a whole board) and `harbours` (coastal edges, ships found by their docks on a
-synthetic sea, the 4+5 type assignment, version-2 codes, port placement validation).
+synthetic sea, the 4+5 type assignment, version-2 codes, port placement validation) and
+`buildui` (legal spots in setup and play, the shown build costs match what the rules charge,
+bank trades picked on cards).
 
 Fixture changes made because a rule changed (no assertion was weakened): play-phase settlement
 fixtures in `win` and `longestroad` gained a road to the spot (connectivity rule); the city-win
@@ -274,7 +288,7 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 - **Autosave covers every game in the session** (branches and imports included). A reload lands on Home with the list rather than reopening a game, so `?board=` links still open the editor. A saved entry that no longer replays is dropped instead of breaking the rest.
 - **Export/import format**: `{ format: 'catanalyst-game', version: 1, name, options: { seed, board, diceMode, diceQueue }, actions }`. Import fully replays the actions, so an illegal move is rejected with the failing action named.
 - **Analysis numbers**: pip totals are structural (the robber is ignored), while "expected cards per roll" skips the robbed hex and ignores bank shortages. Income is attributed by the action that caused each hand change; spending on builds, cards given in trades and sandbox edits are not counted.
-- **Native `<select>` dropdowns** were driven with the browser tool's form input during verification (the preview pane cannot drive a native select popup with clicks or keys). Board clicks always used real pointer travel.
+- **Native `<select>` dropdowns** (still in the sandbox, replay and Home) were driven with the browser tool's form input during verification (the preview pane cannot drive a native select popup with clicks or keys). Board clicks always used real pointer travel.
 
 - **The board opens fitted to its frame** (magnifying past 100% in a big window), at Tony's request; `fitZoom`'s old "never past 1:1" test was changed with the rule.
 - **Board art was hand-drawn rather than taken from a free pack** so there is nothing to license or bundle; a CC0 set (e.g. Kenney) could replace `BoardArt.jsx` later.

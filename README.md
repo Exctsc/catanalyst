@@ -27,6 +27,9 @@ have had analysis boards for decades. Catan players have screenshots.
   bank and port trades, player-to-player trades, all five development cards, Largest
   Army, Longest Road (with opponents' settlements breaking roads), supply limits
   (5 settlements, 4 cities, 15 roads), and a win at 10 VP with hidden VP cards.
+- **Picture-based controls**: build and trade from a row of illustrated tiles showing pieces
+  left and costs; pick Road, Settlement or City and the legal spots glow on the board. Trades,
+  discards and dev card choices are made by clicking resource cards.
 - **Board generator**: standard random boards, or **balanced** boards with no touching
   6/8 and no touching equal numbers.
 - **Board from a screenshot**: load a screenshot of an online game's board (tested on Colonist),
@@ -95,7 +98,7 @@ publishes `dist`, and rewrites every path to the app so board links work.
   steals, the dev deck shuffle, random boards) comes from a counter-based seeded PRNG whose
   seed and position live in game state. A game is just `{ options, actions }`, which is what
   makes replay, branching, autosave and export cheap and exact.
-- **Tests**: 32 Node suites (`tests/*.test.mjs`, about 670 assertions). These include a
+- **Tests**: 33 Node suites (`tests/*.test.mjs`, about 690 assertions). These include a
   scripted bot that plays complete games, which must replay to a deep-equal state.
 - The SVG board sits inside a CSS-transformed viewport, so hit-testing stays exact at
   any zoom.

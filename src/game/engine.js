@@ -6,6 +6,10 @@ import * as A from './gameActions.js';
 import { createGame } from './gameState.js';
 import { setDiceQueue } from './dice.js';
 import { sandboxEdit } from './sandbox.js';
+import { EDGES, VERTICES } from './gameRules.js';
+
+const EDGE_IDS = EDGES.map((_, i) => i);
+const VERTEX_IDS = VERTICES.map((_, i) => i);
 
 const HANDLERS = {
   roll: s => A.performRoll(s),
@@ -83,4 +87,40 @@ export function branchGame(game, index) {
   const { states, error } = replay(game.options, actions);
   if (error) return error;
   return { options: game.options, actions, state: states.at(-1) };
+}
+
+// What each purchase costs; the rules in gameActions charge the same (a test
+// checks), this copy is what the UI shows.
+export const BUILD_COSTS = {
+  road: { brick: 1, wood: 1 },
+  settlement: { brick: 1, wood: 1, wheat: 1, sheep: 1 },
+  city: { wheat: 2, ore: 3 },
+  devCard: { ore: 1, wheat: 1, sheep: 1 },
+};
+
+// Board spots where the current player could build `kind` right now: edge
+// indexes for 'road', vertex indexes for 'settlement' / 'city'. Asks dispatch
+// itself, so cost, pieces left, phase and placement rules all count.
+export function legalSpots(state, kind) {
+  const player = state.currentPlayerIndex;
+  const ok = action => typeof dispatch(state, action) !== 'string';
+  if (kind === 'road') return EDGE_IDS.filter(edge => ok({ type: 'placeRoad', player, edge }));
+  const type = kind === 'city' ? 'upgradeToCity' : 'placeSettlement';
+  return VERTEX_IDS.filter(vertex => ok({ type, player, vertex }));
+}
+
+// A bank trade as picked on the cards: `give` is N× the port rate of one
+// resource, `get` is N cards of other resources. Returns the bankTrade
+// actions to apply in order, or a short reason it isn't a bank trade.
+export function bankTradePlan(state, give, get) {
+  const player = state.currentPlayerIndex;
+  const types = Object.keys(give).filter(r => give[r] > 0);
+  const wanted = Object.keys(get).flatMap(r => Array(get[r] > 0 ? get[r] : 0).fill(r));
+  if (types.length !== 1 || wanted.length === 0) return 'give one kind of card and pick what you get';
+  const [res] = types;
+  const rate = A.portRate(state, player, res);
+  if (give[res] % rate) return `the bank trades ${res} at ${rate}:1`;
+  if (give[res] / rate !== wanted.length) return `${give[res]} ${res} buys ${give[res] / rate} card${give[res] / rate === 1 ? '' : 's'}`;
+  if (wanted.includes(res)) return 'pick a different resource to get';
+  return wanted.map(receive => ({ type: 'bankTrade', player, give: res, receive }));
 }
