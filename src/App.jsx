@@ -328,7 +328,7 @@ export default function App() {
       <header className="g-header">
         <span className="g-brand">⬡ Catanalyst</span>
         <span className="g-turn" style={{ color: currentPlayer.colour }}>{currentPlayer.name}'s turn</span>
-        <span className="g-phase">· {gameState.phase} phase · turn {gameState.turn}</span>
+        <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`}</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
           <AudioControls />

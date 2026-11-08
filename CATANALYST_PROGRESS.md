@@ -335,3 +335,9 @@ Regression coverage: `turnlock` drives all 8 setup placements with `dice === nul
 *Assumptions made in a prior session (roll-lock + ports):* the roll-first gate blocks exactly the four actions the task named (settlement/road/city build + bank trade); **buying** a dev card is *not* gated pre-roll (the task scoped the block to building/trading and only called out dev-card *play* as the exception — buying is left available, matching that literal scope). Road Building's free roads are exempt from the gate via the `roadBuilding` flag, so a pre-roll Road Building still works. Port-to-vertex assignment was derived by matching each existing placeholder dock position to its nearest coastal edge, giving the standard 4×3:1 + 5×2:1 layout; the label dock positions are unchanged, now with dashed lines to the two served intersections.
 
 *Assumptions from prior sessions (still current):* the deck keeps the standard 25-card split (2 Monopoly, not the "1 Monopoly" in an earlier request, which would total 24 and contradict "25-card deck"); a played Knight reuses the `robber` state machine straight at `stage: 'move'` (no discard) and its Largest Army recompute happens before the robber moves, so an army-driven win skips the move; hidden VP cards count toward the win immediately on draw (see known issue #11); the Longest Road tie/handoff rule also strips a holder whose chain drops below 5.
+
+---
+
+## Assumptions (finish run, 2026-11-08)
+
+- **Turn counter = round number.** `turn` starts at 1 when play begins and advances each time play wraps back to Player 1; setup is not counted (the header shows "Setup" instead). The log marks each new round with `Turn N — …`.

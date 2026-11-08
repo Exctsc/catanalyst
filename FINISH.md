@@ -32,7 +32,7 @@ Real-time online multiplayer is deliberately out of scope (Colonist already does
 - [x] **Settlement connectivity** (known bug #6): outside setup, a settlement must touch one of the player's roads. Tested.
 - [x] **Building supply limits**: 5 settlements, 4 cities, 15 roads per player; upgrading a city returns the settlement piece. Clear error strings. Tested.
 - [x] **Player index validation** (known bug #5) on every action. Tested.
-- [ ] **Turn counter** increments correctly (one full rotation of players = one round; display "Turn N"). Tested.
+- [x] **Turn counter** increments correctly (one full rotation of players = one round; display "Turn N"). Tested.
 - [ ] **Player-to-player trading (hotseat)**: current player builds an offer (give / get, any counts) to one opponent; the opponent accepts or declines on the same screen. Validates both hands, only after rolling, logged. Tested.
 
 ## Phase 2: Training features (the reason this product exists)

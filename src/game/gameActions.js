@@ -45,10 +45,12 @@ export function endTurn(gameState) {
   const players = gameState.players.map((p, i) =>
     i === cur ? { ...p, devCards: p.devCards.map(c => ({ ...c, newlyBought: false })) } : p
   );
+  // `turn` counts rounds: it advances when play wraps back to the first player.
+  const turn = next === 0 ? gameState.turn + 1 : gameState.turn;
   return log({
-    ...gameState, players, currentPlayerIndex: next, dice: null,
+    ...gameState, players, currentPlayerIndex: next, dice: null, turn,
     devCardPlayedThisTurn: false, roadBuilding: null,
-  }, next, `${gameState.players[next].name}'s turn`);
+  }, next, next === 0 ? `Turn ${turn} — ${gameState.players[next].name}'s turn` : `${gameState.players[next].name}'s turn`);
 }
 
 // Each settlement is at an intersectionIndex; check all adjacent hexes for production.
