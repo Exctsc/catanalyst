@@ -20,9 +20,10 @@ autonomous attempt had been refused by the permission classifier). Later commits
 
 ## Worth a look (not blockers)
 
-- **Board from a screenshot** reads terrain and numbers; on your Colonist screenshot all 19 hexes
-  came out right. Ports are still manual. If a terrain shade misreads on another theme, add it to
-  `REFERENCE` in `src/game/boardImage.js`. Rotated boards aren't supported.
+- **Board from a screenshot** now reads terrain, numbers and ports; on your Colonist screenshot
+  everything came out right. If Colonist changes its art or you try another site, a misread
+  terrain shade goes in `REFERENCE` and a misread port icon means re-measuring `ICON_PROFILES`
+  (both in `src/game/boardImage.js`). Rotated boards aren't supported.
 - **Copy link** in the board editor uses the clipboard API. In the desktop app's preview pane the
   write was refused (no clipboard permission), so the button just stays "Copy link"; the code field
   and "Open link" work everywhere. Check it once in a normal Chrome tab after deploying.

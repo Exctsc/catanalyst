@@ -4,8 +4,8 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 652 assertions, 0
-> failures across 31 suites. Build and lint are clean. The full product was verified end to end
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 669 assertions, 0
+> failures across 32 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
 ---
@@ -125,9 +125,20 @@ none).
   patch holding the most separate ink marks; small marks low in it are pips (a blurred bar is
   counted by its length), tall marks are digits. Pips pick the pair (1→2/12, 2→3/11, 3→4/10,
   4→5/9, 5→6/8), two digits mean 10–12, a closed loop makes 9 not 5, two loops make 8 not 6, and
-  red ink forces 6/8. Unread tokens are left blank and counted in the panel. Ports are manual.
-  Verified on a real Colonist screenshot: all 19 terrains and all 18 numbers right, for six
-  different click positions (±20px) and at 100/60/45% size (35%: 17 of 18). Our own low-res
+  red ink forces 6/8. Unread tokens are left blank and counted in the panel.
+  **Ports are read too** (`findShips`/`detectPorts`): each coastal edge is checked a little out to
+  sea for white sail; the strongest sail is a ship, and its edge is the one whose two corners the
+  orange plank docks run to (a small fan of lines per corner absorbs a rough alignment). The
+  sail's icon gives three features (ink share, how much is one piece, that piece's aspect), and
+  the standard set (4×3:1 + one of each resource) is assigned by the lowest total distance to six
+  measured icon profiles. Terrain sampling ignores near-white/near-black pixels (tile icons,
+  tokens, text). Colonist puts ports on different edges than our standard slots, so ports can
+  now sit on any coastal edge: validation requires a coastal edge and no shared corner, board
+  codes gain version "2" (adds a 5-bit coastal edge per port; standard-slot boards keep the short
+  "1" code), and the editor's port panel has ◀ ▶ Move along the coast.
+  Verified on a real Colonist screenshot: terrain 19/19 and numbers 18/18 for seven click
+  positions (up to ±20px) at 100/60/45% size; ports 9/9 except the sloppiest clicks (8/9).
+  At 35% size numbers are 17/18 and several port icons swap. Browser-verified end to end. Our own low-res
   (800px) board reads about 11 of 18; small cream tokens blur, and validation shows the gaps.
 - **Board codes**: `1` + 27 base64url chars (7 bits per hex, 3 per port); `?board=<code>` opens it
   in the editor; Share section with code field, Copy link and Open link.
@@ -159,7 +170,7 @@ none).
 
 ## Tests (`npm test`)
 
-31 suites, 652 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
+32 suites, 669 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
 `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound`. Added in
 the finish run: `board` (state-owned layout), `roadblock`, `connectivity`, `supply`,
 `playerindex`, `turncounter`, `playertrade`, `engine` (rng, dispatch, full scripted game twice +
@@ -169,7 +180,8 @@ replay), `boardgen` (400 seeds; validation), `boardcode` (300 boards round-trip,
 tolerant library parsing), `analysis`. Added after the run: `boardimage` (colour classification,
 whole synthetic screenshots with tokens, pieces and noise, two-click alignment) and `tokens`
 (synthetic number tokens in a 5x7 font: every number, square and round tokens, a pale decoy,
-blurred pip bars, a whole board).
+blurred pip bars, a whole board) and `harbours` (coastal edges, ships found by their docks on a
+synthetic sea, the 4+5 type assignment, version-2 codes, port placement validation).
 
 Fixture changes made because a rule changed (no assertion was weakened): play-phase settlement
 fixtures in `win` and `longestroad` gained a road to the spot (connectivity rule); the city-win
@@ -229,8 +241,11 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 11. The game screen is desktop-first; narrow screens work but are cramped. Below 1100px the
     header brand shows only the ⬡ icon so the status chip keeps its room.
 12. **Screenshot tracing assumes the standard orientation** (rows of 3-4-5-4-3, pointy-top hexes)
-    and reads terrain and numbers, not ports. A themed or rotated board, a robber or piece sitting
-    on a token, or a very small screenshot can misread a hex; the user corrects it in the editor.
+    and Colonist-style ships for ports (white sails, orange plank docks). A themed or rotated
+    board, a robber or piece on a token, very sloppy clicks or a very small screenshot can misread
+    a hex or port; the user corrects it in the editor (ports via type + ◀ ▶ Move).
+13. **Port icon profiles are measured on Colonist's current art**; new artwork means re-measuring
+    the six rows in `ICON_PROFILES`.
 
 ---
 

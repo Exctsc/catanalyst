@@ -1,6 +1,6 @@
 // Random board generation from the seeded rng.
 import {
-  HEX_ADJACENCY, PORTS, STANDARD_TILE_COUNTS, STANDARD_NUMBERS, STANDARD_PORT_COUNTS,
+  HEX_ADJACENCY, PORTS, STANDARD_TILE_COUNTS, STANDARD_NUMBERS, STANDARD_PORT_COUNTS, EDGES, COASTAL_EDGES,
 } from './gameRules.js';
 import { shuffle } from './rng.js';
 
@@ -50,6 +50,13 @@ export function validateBoard(board, { free = false } = {}) {
   if (board.tiles.some(t => !TERRAINS.includes(t))) errors.push('Unknown terrain');
   if (board.numbers.some(n => n !== null && !NUMBER_TOKENS.includes(n))) errors.push('Number tokens must be 2–6 or 8–12');
   if (board.ports.some(p => !p || !PORT_TYPES.includes(p.type))) errors.push('Unknown port type');
+  // Ports sit on coastal edges, at most one per corner.
+  const onCoast = p => Array.isArray(p?.vertices) && COASTAL_EDGES.some(e => {
+    const [a, b] = EDGES[e];
+    return (a === p.vertices[0] && b === p.vertices[1]) || (a === p.vertices[1] && b === p.vertices[0]);
+  });
+  if (!board.ports.every(onCoast)) errors.push('Every port must sit on a coastal edge');
+  else if (new Set(board.ports.flatMap(p => p.vertices)).size !== board.ports.length * 2) errors.push('Two ports share a corner');
   if (free || errors.length) return errors;
 
   const diff = (label, have, want) => {

@@ -3,7 +3,7 @@
 // its pixels are `naturalWidth` wide), each hex is sampled on a ring between
 // the number token and the corners, and the median colour is matched to the
 // nearest reference colour. Numbers and ports are left to the user.
-import { HEX_CENTERS, SIZE } from './gameRules.js';
+import { HEX_CENTERS, SIZE, VERTICES, COASTAL_EDGES, coastalNormal, portSlot } from './gameRules.js';
 
 // Reference colours per terrain: this app's palette plus typical online-board
 // shades. ponytail: nearest-colour matching, extend these lists if a theme misreads.
@@ -62,10 +62,14 @@ const median = xs => { const s = [...xs].sort((a, b) => a - b); return s[Math.fl
 export function detectTerrains(getPixel, placement, naturalWidth, fallback = []) {
   const k = naturalWidth / placement.width;
   return HEX_CENTERS.map((_, h) => {
-    const colours = samplePoints(h)
+    const all = samplePoints(h, 24)
       .map(p => getPixel(Math.round((p.x - placement.x) * k), Math.round((p.y - placement.y) * k)))
       .filter(Boolean);
-    if (colours.length < 4) return fallback[h] ?? 'desert';
+    if (all.length < 8) return fallback[h] ?? 'desert';
+    // Tile icons, number tokens and text are near-white or near-black; the
+    // terrain is whatever colour remains.
+    const terrain = all.filter(c => !(c[0] > 215 && c[1] > 215 && c[2] > 215) && luma(c) > 50);
+    const colours = terrain.length >= 6 ? terrain : all;
     return classifyColor([0, 1, 2].map(c => median(colours.map(col => col[c]))));
   });
 }
@@ -217,4 +221,150 @@ export function detectNumbers(getPixel, placement, naturalWidth) {
     const t = readToken(getPixel, (cx - placement.x) * k, (cy - placement.y) * k, 0.95 * SIZE * k);
     return t ? t.number : null;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Ports. Online boards draw each harbour as a white-sailed ship off a coastal
+// edge, joined to the edge's two corners by orange plank docks, with a small
+// icon on the sail (wheat, bricks, tree, sheep, rocks, or "?" for 3:1).
+// ---------------------------------------------------------------------------
+
+const isSail = c => luma(c) > 200 && chroma(c) < 40;
+// Plank orange (≈220,150,50), told from beach sand (≈225,180,105) by its proportions.
+const isPlank = c => c[0] > 140 && c[1] / c[0] > 0.55 && c[1] / c[0] < 0.76 && c[2] / c[0] < 0.35;
+
+// Share of `test` pixels in a square window, and their centroid.
+function windowStats(getPixel, cx, cy, r, test) {
+  let hit = 0, total = 0, sx = 0, sy = 0;
+  for (let y = Math.round(cy - r); y <= cy + r; y++) for (let x = Math.round(cx - r); x <= cx + r; x++) {
+    const c = getPixel(x, y);
+    if (!c) continue;
+    total++;
+    if (test(c)) { hit++; sx += x; sy += y; }
+  }
+  return { share: total ? hit / total : 0, x: hit ? sx / hit : cx, y: hit ? sy / hit : cy };
+}
+
+// Share of plank pixels along the line from the ship to a corner, past the
+// ship's own (orange) hull and short of the beach at the corner.
+function plankShare(getPixel, from, to) {
+  let hit = 0, n = 0;
+  for (let t = 0.4; t <= 0.92; t += 0.02) {
+    const c = getPixel(Math.round(from.x + (to.x - from.x) * t), Math.round(from.y + (to.y - from.y) * t));
+    if (!c) continue;
+    n++;
+    if (isPlank(c)) hit++;
+  }
+  return n ? hit / n : 0;
+}
+
+// Shape features of the icon on a sail centred near (cx, cy).
+export function sailFeatures(getPixel, cx, cy, reach) {
+  const left = Math.round(cx - reach), top = Math.round(cy - reach), w = Math.round(2 * reach), h = w;
+  const sail = new Uint8Array(w * h), dark = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = getPixel(left + x, top + y);
+    sail[y * w + x] = c && isSail(c) ? 1 : 0;
+    dark[y * w + x] = c && luma(c) < 150 ? 1 : 0;
+  }
+  const { label, comps } = components(sail, w, h);
+  const main = comps.reduce((a, b) => (!a || b.cells.length > a.cells.length ? b : a), null);
+  if (!main || main.cells.length < reach * reach * 0.2) return null;
+  const { hole, bw, bh } = holes(i => label[i] === main.id, w, main);
+  for (let i = 0; i < bw * bh; i++) if (!dark[(main.y0 + ((i / bw) | 0)) * w + main.x0 + (i % bw)]) hole[i] = 0;
+  const area = main.cells.length;
+  const marks = components(hole, bw, bh).comps
+    .filter(m => m.cells.length >= Math.max(3, area * 0.001) && (m.y0 + m.y1) / 2 < 0.6 * bh);
+  if (!marks.length) return { ink: 0, dom: 1, aspect: 1 };
+  const biggest = marks.reduce((a, b) => (b.cells.length > a.cells.length ? b : a));
+  const ink = marks.reduce((t, m) => t + m.cells.length, 0) / area;
+  // ink: how much of the sail is icon; dom: share of that ink in the biggest
+  // piece; aspect: width / height of the biggest piece.
+  return { ink, dom: biggest.cells.length / (ink * area), aspect: biggest.w / biggest.h };
+}
+
+// Typical features of each sail icon (measured on Colonist's ships at full,
+// 60% and 45% size): one big wide blob (sheep), one big upright blob (tree),
+// flat bars (bricks), several round blobs (rocks), thin strokes (wheat), "?".
+// ponytail: nearest-profile; new artwork means re-measuring these six rows.
+const ICON_PROFILES = {
+  sheep: { ink: 0.15, dom: 1, aspect: 1.36 },
+  wood: { ink: 0.114, dom: 0.99, aspect: 0.88 },
+  brick: { ink: 0.155, dom: 0.62, aspect: 2.3 },
+  ore: { ink: 0.117, dom: 0.36, aspect: 0.88 },
+  wheat: { ink: 0.063, dom: 0.76, aspect: 1.23 },
+  generic: { ink: 0.042, dom: 0.82, aspect: 0.88 },
+};
+
+export function iconDistance(f, type) {
+  const p = ICON_PROFILES[type];
+  return ((f.ink - p.ink) / 0.02) ** 2 + ((f.dom - p.dom) / 0.25) ** 2 + (Math.log(f.aspect / p.aspect) / 0.25) ** 2;
+}
+
+const SINGLES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
+
+// Types for a set of sail features. With exactly 9 ships, use the standard
+// harbour set (4 generic + one of each resource) and pick the assignment with
+// the smallest total distance; otherwise each ship takes its nearest type.
+export function assignPortTypes(features) {
+  if (features.length !== 9 || features.some(f => !f)) {
+    return features.map(f => (f ? Object.keys(ICON_PROFILES).reduce((a, b) => (iconDistance(f, b) < iconDistance(f, a) ? b : a)) : 'generic'));
+  }
+  const cost = features.map(f => Object.fromEntries(Object.keys(ICON_PROFILES).map(t => [t, iconDistance(f, t)])));
+  let best = null, bestCost = Infinity;
+  const pick = (k, chosen, total) => {
+    if (total >= bestCost) return;
+    if (k === SINGLES.length) {
+      const all = total + cost.reduce((t, c, i) => t + (chosen.includes(i) ? 0 : c.generic), 0);
+      if (all < bestCost) { bestCost = all; best = [...chosen]; }
+      return;
+    }
+    for (let i = 0; i < 9; i++) if (!chosen.includes(i)) pick(k + 1, [...chosen, i], total + cost[i][SINGLES[k]]);
+  };
+  pick(0, [], 0);
+  return features.map((_, i) => (best.includes(i) ? SINGLES[best.indexOf(i)] : 'generic'));
+}
+
+// Find up to 9 ships: strongest sail first, its docks choose the edge.
+export function findShips(getPixel, placement, naturalWidth) {
+  const k = naturalWidth / placement.width;
+  const toPx = (x, y) => ({ x: (x - placement.x) * k, y: (y - placement.y) * k });
+  // Look a little nearer and further out too, so a rough alignment still finds them.
+  const sea = COASTAL_EDGES.map(e => {
+    const { mx, my, nx, ny } = coastalNormal(e);
+    return [0.9, 1.1, 1.3].map(d => {
+      const p = toPx(mx + nx * d * SIZE, my + ny * d * SIZE);
+      return { edge: e, p, score: windowStats(getPixel, p.x, p.y, 0.45 * SIZE * k, isSail).share };
+    }).reduce((a, b) => (b.score > a.score ? b : a));
+  });
+  const ships = [], used = new Set(), taken = new Set();
+  for (const cand of [...sea].sort((a, b) => b.score - a.score)) {
+    if (ships.length === 9 || cand.score < 0.05) break;
+    if (used.has(cand.edge)) continue;
+    const c = windowStats(getPixel, cand.p.x, cand.p.y, 0.7 * SIZE * k, isSail);
+    const near = sea.filter(o => Math.hypot(o.p.x - c.x, o.p.y - c.y) < 1.2 * SIZE * k);
+    near.forEach(o => used.add(o.edge));
+    let best = null;
+    for (const o of near) {
+      const [a, b] = portSlot(o.edge).vertices;
+      if (taken.has(a) || taken.has(b)) continue;
+      // Aim a small fan around each corner: a rough alignment puts it a little off.
+      const dock = v => Math.max(...[-0.15, 0, 0.15].flatMap(dx => [-0.15, 0, 0.15].map(dy =>
+        plankShare(getPixel, c, toPx(VERTICES[v].x + dx * SIZE, VERTICES[v].y + dy * SIZE)))));
+      const docks = dock(a) + dock(b);
+      if (!best || docks > best.docks) best = { edge: o.edge, docks };
+    }
+    if (!best) continue;
+    portSlot(best.edge).vertices.forEach(v => taken.add(v));
+    ships.push({ edge: best.edge, x: c.x, y: c.y, features: sailFeatures(getPixel, c.x, c.y, 0.75 * SIZE * k) });
+  }
+  return ships;
+}
+
+// The board's 9 ports from an aligned screenshot, or null if 9 ships weren't found.
+export function detectPorts(getPixel, placement, naturalWidth) {
+  const ships = findShips(getPixel, placement, naturalWidth);
+  if (ships.length !== 9) return null;
+  const types = assignPortTypes(ships.map(s => s.features));
+  return ships.map((s, i) => ({ ...portSlot(s.edge), type: types[i] }));
 }

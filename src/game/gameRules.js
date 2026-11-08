@@ -125,3 +125,32 @@ export const HEX_ADJACENCY = HEX_TO_VERTICES.map((verts, h) =>
 export const STANDARD_TILE_COUNTS = { forest: 4, pasture: 4, fields: 4, hills: 3, mountains: 3, desert: 1 };
 export const STANDARD_NUMBERS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
 export const STANDARD_PORT_COUNTS = { generic: 4, brick: 1, wood: 1, ore: 1, wheat: 1, sheep: 1 };
+
+// COASTAL_EDGES — edge indices on the board's rim (edges of exactly one hex),
+// the only places a harbour can sit.
+export const COASTAL_EDGES = EDGES.map((_, i) => i).filter(i => {
+  const [a, b] = EDGES[i];
+  return VERTEX_TO_HEXES[a].filter(h => VERTEX_TO_HEXES[b].includes(h)).length === 1;
+});
+
+// Outward unit normal of a coastal edge and its midpoint.
+export function coastalNormal(edgeIndex) {
+  const [a, b] = EDGES[edgeIndex];
+  const hex = VERTEX_TO_HEXES[a].find(h => VERTEX_TO_HEXES[b].includes(h));
+  const mx = (VERTICES[a].x + VERTICES[b].x) / 2, my = (VERTICES[a].y + VERTICES[b].y) / 2;
+  const nx = mx - HEX_CENTERS[hex].cx, ny = my - HEX_CENTERS[hex].cy, nl = Math.hypot(nx, ny);
+  return { mx, my, nx: nx / nl, ny: ny / nl };
+}
+
+// A port slot on any coastal edge: its two vertices and a label position out to sea.
+export function portSlot(edgeIndex) {
+  const { mx, my, nx, ny } = coastalNormal(edgeIndex);
+  return { vertices: [...EDGES[edgeIndex]], x: Math.round(mx + nx * 0.9 * SIZE), y: Math.round(my + ny * 0.9 * SIZE) };
+}
+
+// Coastal edges in order around the board (clockwise from the left), for
+// moving a port along the coast.
+export const COAST_RING = [...COASTAL_EDGES].sort((a, b) => {
+  const angle = e => { const { mx, my } = coastalNormal(e); return Math.atan2(my - 150, mx); };
+  return angle(a) - angle(b);
+});
