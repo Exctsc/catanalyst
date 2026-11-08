@@ -1,6 +1,6 @@
 import initialGameState from '../src/game/gameState.js';
 import { placeSettlement, upgradeToCity, placeRoad, bankTrade } from '../src/game/gameActions.js';
-import { VERTICES, VERTEX_ADJACENCY } from '../src/game/gameRules.js';
+import { VERTICES, VERTEX_ADJACENCY, EDGES } from '../src/game/gameRules.js';
 
 let pass = 0, fail = 0;
 function check(name, cond) {
@@ -17,8 +17,11 @@ function playState(p1Overrides) {
   };
 }
 
+// Play-phase settlements must touch one of the owner's roads.
+const roadTo = v => ({ edgeIndex: EDGES.findIndex(e => e.includes(v)) });
+
 // Settlement grants 1 VP
-const s1 = placeSettlement(playState({ resources: { brick: 1, wood: 1, ore: 0, wheat: 1, sheep: 1 } }), 0, 0);
+const s1 = placeSettlement(playState({ roads: [roadTo(0)], resources: { brick: 1, wood: 1, ore: 0, wheat: 1, sheep: 1 } }), 0, 0);
 check('settlement worth 1 VP', typeof s1 !== 'string' && s1.players[0].victoryPoints === 1);
 check('no winner at 1 VP', s1.winner === null);
 
@@ -43,6 +46,7 @@ for (let v = 0; v < VERTICES.length && occupied.length < 6; v++) {
 const nearWin = playState({
   cities: occupied.slice(0, 4).map(v => ({ intersectionIndex: v })),
   settlements: [{ intersectionIndex: occupied[4] }],
+  roads: [roadTo(occupied[5])],
   victoryPoints: 9,
   resources: { brick: 1, wood: 1, ore: 3, wheat: 3, sheep: 1 },
 });

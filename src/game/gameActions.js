@@ -244,6 +244,8 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
     if (setup.settlementsPlaced[playerIndex] >= 2) return 'You have placed both setup settlements';
     isSecondSetupSettlement = setup.settlementsPlaced[playerIndex] === 1;
   } else {
+    const touchesOwnRoad = gameState.players[playerIndex].roads.some(r => EDGES[r.edgeIndex].includes(intersectionIndex));
+    if (!touchesOwnRoad) return 'Settlement must connect to one of your roads';
     const res = gameState.players[playerIndex].resources;
     if (res.brick < 1 || res.wood < 1 || res.wheat < 1 || res.sheep < 1)
       return 'Insufficient resources';

@@ -118,11 +118,13 @@ check('old holder loses the +2 VP', p1Six.players[0].victoryPoints === 1);
 // Player 0 holds it with a 5-chain; player 1 places a settlement on the middle.
 const holderState = { ...after5 };
 const breakVertex = roadPath[2];
-// give player 1 the turn + resources and an empty legal spot at breakVertex
+// give player 1 the turn + resources, an empty legal spot at breakVertex, and
+// a road leading to it (play-phase settlements must touch the owner's road)
+const sideVertex = VERTEX_ADJACENCY[breakVertex].find(v => v !== roadPath[1] && v !== roadPath[3]);
 const settleBreak = {
   ...holderState, currentPlayerIndex: 1,
   players: holderState.players.map((p, i) => i === 1
-    ? { ...p, resources: { brick: 1, wood: 1, ore: 0, wheat: 1, sheep: 1 } }
+    ? { ...p, resources: { brick: 1, wood: 1, ore: 0, wheat: 1, sheep: 1 }, roads: [...p.roads, { edgeIndex: eidx(breakVertex, sideVertex) }] }
     : p),
 };
 const broken = placeSettlement(settleBreak, 1, breakVertex);
