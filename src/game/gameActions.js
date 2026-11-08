@@ -307,13 +307,7 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
 
   const player = gameState.players[playerIndex];
   const [v1, v2] = EDGES[edgeIndex];
-
-  const network = new Set([
-    ...player.settlements.map(s => s.intersectionIndex),
-    ...player.cities.map(c => c.intersectionIndex),
-    ...player.roads.flatMap(r => EDGES[r.edgeIndex]),
-  ]);
-  if (!network.has(v1) && !network.has(v2)) return 'Road must connect to your existing network';
+  if (!touchesNetwork(gameState, playerIndex, edgeIndex)) return 'Road must connect to your existing network';
 
   const isSetup = gameState.phase === 'setup';
   // A played Road Building card grants free roads; otherwise pay 1 brick + 1 wood.
@@ -374,17 +368,29 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
   return finalizeBuild(s, playerIndex);
 }
 
+// Owner of the building at a vertex, or null.
+function buildingOwner(gameState, vertex) {
+  const i = gameState.players.findIndex(p =>
+    p.settlements.some(s => s.intersectionIndex === vertex) || p.cities.some(c => c.intersectionIndex === vertex));
+  return i === -1 ? null : i;
+}
+
+// An edge connects if either endpoint holds the player's own building, or is
+// the end of one of their roads and not occupied by an opponent's building
+// (an opponent's settlement or city blocks extension through that vertex).
+function touchesNetwork(gameState, playerIndex, edgeIndex) {
+  const roadEnds = new Set(gameState.players[playerIndex].roads.flatMap(r => EDGES[r.edgeIndex]));
+  return EDGES[edgeIndex].some(v => {
+    const owner = buildingOwner(gameState, v);
+    if (owner === playerIndex) return true;
+    return owner === null && roadEnds.has(v);
+  });
+}
+
 // A road is legal if the edge is free and touches the player's network.
 function isLegalRoad(gameState, playerIndex, edgeIndex) {
   if (gameState.players.some(p => p.roads.some(r => r.edgeIndex === edgeIndex))) return false;
-  const player = gameState.players[playerIndex];
-  const [v1, v2] = EDGES[edgeIndex];
-  const network = new Set([
-    ...player.settlements.map(s => s.intersectionIndex),
-    ...player.cities.map(c => c.intersectionIndex),
-    ...player.roads.flatMap(r => EDGES[r.edgeIndex]),
-  ]);
-  return network.has(v1) || network.has(v2);
+  return touchesNetwork(gameState, playerIndex, edgeIndex);
 }
 
 function hasLegalRoad(gameState, playerIndex) {
