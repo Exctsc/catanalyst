@@ -49,7 +49,7 @@ Then the features:
 - [x] **Dice modes** chosen at game start: Random, Balanced (36-combination deck, reshuffled when it runs low, like Colonist's balanced dice), and Scripted (a queue of totals or die pairs typed in advance, editable mid-game; falls back to Random when empty). Tested.
 - [x] **Sandbox / position setup**: from any state, enter an edit mode to place or remove settlements, cities and roads for any player (ignoring costs and rules), set each player's hand and dev cards, move the robber, and choose whose turn it is and whether they have rolled. Exiting edit mode resumes normal rules from that position.
 - [x] **Replay viewer**: step back / forward through any game's actions, jump to a turn, and "play from here" to branch a new game at that point (the original is kept).
-- [ ] **Save, load, export**: autosave the current game to `localStorage` (reads/writes wrapped in try/catch). Export and import a game (board + actions + seed) as a `.json` file. Import validates and rejects malformed files with a clear message.
+- [x] **Save, load, export**: autosave the current game to `localStorage` (reads/writes wrapped in try/catch). Export and import a game (board + actions + seed) as a `.json` file. Import validates and rejects malformed files with a clear message.
 - [ ] **Analysis panel** (sidebar tab):
   - Setup overlay toggle: pip value shown at every open intersection, plus each player's total pips per resource.
   - Expected vs actual: each player's expected resources per roll from current buildings, and a histogram of rolled totals against the 2d6 expectation.

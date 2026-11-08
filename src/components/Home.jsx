@@ -3,7 +3,7 @@ import DiceSetup from './DiceSetup'
 import { diceOptions } from '../game/dice'
 
 // Landing screen: start a game, open the board editor, or load one.
-export default function Home({ error, games = [], onResume, onNewGame, onEditor }) {
+export default function Home({ error, games = [], onResume, onImport, onNewGame, onEditor }) {
   const [balanced, setBalanced] = useState(true)
   const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
   const options = diceOptions(dice)
@@ -52,6 +52,23 @@ export default function Home({ error, games = [], onResume, onNewGame, onEditor 
             <strong>Board editor</strong>
             <span className="g-dim">Set every hex, number token and port, then start a game on it.</span>
             <button className="g-btn" onClick={onEditor}>Open board editor</button>
+          </section>
+
+          <section className="g-side-section">
+            <strong>Load / import</strong>
+            <span className="g-dim">Games autosave in this browser (listed above). Import a game exported as .json from any browser.</span>
+            <label className="g-field">
+              <input
+                type="file"
+                accept=".json,application/json"
+                aria-label="Import game file"
+                onChange={async e => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file) onImport(await file.text())
+                }}
+              />
+            </label>
           </section>
         </div>
       </div>

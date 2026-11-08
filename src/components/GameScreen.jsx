@@ -359,7 +359,7 @@ function GameLog({ log, players }) {
 
 // The play screen. `game` is the engine record { options, actions, state };
 // every change is handed back through setGame.
-export default function GameScreen({ game, setGame, onHome, onBranch }) {
+export default function GameScreen({ game, setGame, onHome, onBranch, onExport }) {
   const [sandbox, setSandbox] = useState(null) // null | { player, tool }
   const [replayAt, setReplayAt] = useState(null) // null = live, else action index on screen
   const replaying = replayAt !== null
@@ -549,6 +549,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch }) {
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
           {!sandbox && !replaying && (
             <>
+              <button className="g-btn" onClick={onExport}>Export</button>
               <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
                 Replay
               </button>
