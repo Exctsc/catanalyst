@@ -24,3 +24,8 @@ dist-ssr
 *.sw?
 node_modules/
 .env
+
+# Local tool config
+.claude/settings.local.json
+.claude/.headroom_wrap_marker.json
+.serena/
