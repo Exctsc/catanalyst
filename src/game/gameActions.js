@@ -223,6 +223,17 @@ function finalizeBuild(gameState, playerIndex) {
   return recomputeVictory(s, playerIndex);
 }
 
+// Recompute Largest Army, Longest Road, public VP and the winner from scratch
+// for an arbitrary position (used when leaving the sandbox editor). A holder
+// who no longer qualifies loses the award before the normal rules run.
+export function recomputeAwards(gameState) {
+  let s = { ...gameState, winner: null };
+  if (s.largestArmy !== null && (s.players[s.largestArmy].knightsPlayed || 0) < 3) s = { ...s, largestArmy: null };
+  s = { ...s, largestArmy: recomputeLargestArmy(s) };
+  s = { ...s, longestRoad: recomputeLongestRoad(s) };
+  return recomputeVictory(s, s.currentPlayerIndex);
+}
+
 function isOccupied(gameState, intersectionIndex) {
   return gameState.players.some(p =>
     p.settlements.some(s => s.intersectionIndex === intersectionIndex) ||

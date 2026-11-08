@@ -115,17 +115,17 @@ function DiscardPanel({ player, required, onConfirm }) {
 
 const EMPTY_HAND = { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }
 
-// Five small number inputs, one per resource, capped at `max[r]` when given.
-function CountInputs({ counts, max, onChange }) {
-  return RESOURCES.map(r => (
-    <label key={r}>
-      <ResourceChip resource={r} size={14} />
+// Small number inputs, one per key (resources by default), capped at `max[k]` when given.
+function CountInputs({ counts, max, onChange, keys = RESOURCES }) {
+  return keys.map(r => (
+    <label key={r} title={DEV_META[r]?.label ?? r}>
+      {DEV_META[r] ? DEV_META[r].icon : <ResourceChip resource={r} size={14} />}
       <input
         type="number"
         min={0}
         max={max ? max[r] : undefined}
-        value={counts[r]}
-        aria-label={r}
+        value={counts[r] ?? 0}
+        aria-label={DEV_META[r]?.label ?? r}
         onChange={e => {
           const n = Math.max(0, Math.floor(+e.target.value || 0))
           onChange({ ...counts, [r]: max ? Math.min(max[r], n) : n })
@@ -153,6 +153,86 @@ function PlayerTradePanel({ players, currentPlayerIndex, onOffer }) {
       <CountInputs counts={get} onChange={setGet} />
       <button className="g-btn g-btn-primary" onClick={() => onOffer(to, give, get)}>Offer</button>
     </div>
+  )
+}
+
+const SANDBOX_TOOLS = [
+  ['settlement', 'Settlement'], ['city', 'City'], ['road', 'Road'], ['robber', 'Robber'], ['remove', 'Remove'],
+]
+
+// Sandbox editor: pieces are placed by clicking the board with the chosen
+// player and tool; hands, dev cards, knights and the turn are set here.
+// Every Apply is a recorded sandbox action.
+function SandboxPanel({ state, sandbox, setSandbox, onEdit, onDone }) {
+  const p = state.players[sandbox.player]
+  const devCounts = Object.fromEntries(DEV_ORDER.map(t => [t, p.devCards.filter(c => c.type === t).length]))
+  const [hand, setHand] = useState(p.resources)
+  const [dev, setDev] = useState(devCounts)
+  const [knights, setKnights] = useState(p.knightsPlayed)
+  const [turn, setTurn] = useState({ player: state.currentPlayerIndex, rolled: state.dice !== null })
+  return (
+    <>
+      <div className="g-side-section">
+        <strong>Sandbox: edit position</strong>
+        <div className="g-row">
+          {state.players.map((pl, i) => (
+            <button
+              key={pl.id}
+              className={`g-btn${i === sandbox.player ? ' g-btn-primary' : ''}`}
+              style={{ borderColor: pl.colour }}
+              onClick={() => setSandbox({ ...sandbox, player: i })}
+            >
+              {pl.name}
+            </button>
+          ))}
+        </div>
+        <div className="g-row">
+          {SANDBOX_TOOLS.map(([tool, label]) => (
+            <button key={tool} className={`g-btn${tool === sandbox.tool ? ' g-btn-primary' : ''}`} onClick={() => setSandbox({ ...sandbox, tool })}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="g-dim">Click the board to apply. Costs and placement rules are ignored.</span>
+      </div>
+
+      <div className="g-side-section">
+        <strong style={{ color: p.colour }}>{p.name}: hand</strong>
+        <div className="g-modal-row">
+          <CountInputs counts={hand} onChange={setHand} />
+          <button className="g-btn" onClick={() => onEdit({ op: 'setHand', player: sandbox.player, resources: hand })}>Apply hand</button>
+        </div>
+      </div>
+
+      <div className="g-side-section">
+        <strong style={{ color: p.colour }}>{p.name}: dev cards</strong>
+        <div className="g-modal-row">
+          <CountInputs counts={dev} onChange={setDev} keys={DEV_ORDER} />
+          <label>⚔️ played
+            <input type="number" min={0} value={knights} aria-label="Knights played"
+              onChange={e => setKnights(Math.max(0, Math.floor(+e.target.value || 0)))} />
+          </label>
+          <button className="g-btn" onClick={() => onEdit([
+            { op: 'setDevCards', player: sandbox.player, counts: dev },
+            { op: 'setKnights', player: sandbox.player, count: knights },
+          ])}>Apply cards</button>
+        </div>
+      </div>
+
+      <div className="g-side-section">
+        <label className="g-field">To move
+          <select value={turn.player} onChange={e => setTurn({ ...turn, player: +e.target.value })}>
+            {state.players.map((pl, i) => <option key={pl.id} value={i}>{pl.name}</option>)}
+          </select>
+        </label>
+        <label className="g-field">
+          <input type="checkbox" checked={turn.rolled} onChange={e => setTurn({ ...turn, rolled: e.target.checked })} />
+          has rolled this turn
+        </label>
+        <button className="g-btn" onClick={() => onEdit({ op: 'setTurn', ...turn })}>Apply turn</button>
+        <button className="g-btn g-btn-primary" onClick={onDone}>Done: resume play</button>
+      </div>
+    </>
   )
 }
 
@@ -255,6 +335,7 @@ function GameLog({ log, players }) {
 // every change is handed back through setGame.
 export default function GameScreen({ game, setGame, onHome }) {
   const gameState = game.state
+  const [sandbox, setSandbox] = useState(null) // null | { player, tool }
   const [message, setMessage] = useState(null)
   const [tradeGive, setTradeGive] = useState('brick')
   const [tradeReceive, setTradeReceive] = useState('wood')
@@ -286,10 +367,14 @@ export default function GameScreen({ game, setGame, onHome }) {
   )
 
   // Every change goes through the engine as a recorded action. An error string
-  // becomes a transient toast. Returns whether the action applied.
-  function act(action) {
-    const next = applyAction(game, action)
-    if (typeof next === 'string') { setMessage(next); return false }
+  // becomes a transient toast. Returns whether the action(s) applied.
+  // Several actions from one click are applied in order before committing.
+  function act(actions) {
+    let next = game
+    for (const action of [].concat(actions)) {
+      next = applyAction(next, action)
+      if (typeof next === 'string') { setMessage(next); return false }
+    }
     setGame(next)
     setMessage(null)
     return true
@@ -300,12 +385,26 @@ export default function GameScreen({ game, setGame, onHome }) {
     act({ type: 'roll' })
   }
 
+  function sandboxEdit(edits) {
+    return act([].concat(edits).map(edit => ({ type: 'sandbox', edit })))
+  }
+
   function handleIntersectionClick(intersectionIndex) {
+    if (sandbox) {
+      if (sandbox.tool === 'settlement' || sandbox.tool === 'city') sandboxEdit({ op: 'setBuilding', vertex: intersectionIndex, player: sandbox.player, kind: sandbox.tool })
+      else if (sandbox.tool === 'remove') sandboxEdit({ op: 'setBuilding', vertex: intersectionIndex, player: null, kind: null })
+      return
+    }
     const ownSettlement = currentPlayer.settlements.some(s => s.intersectionIndex === intersectionIndex)
     act({ type: gameState.phase !== 'setup' && ownSettlement ? 'upgradeToCity' : 'placeSettlement', player: me, vertex: intersectionIndex })
   }
 
   function handleEdgeClick(edgeIndex) {
+    if (sandbox) {
+      if (sandbox.tool === 'road') sandboxEdit({ op: 'setRoad', edge: edgeIndex, player: sandbox.player })
+      else if (sandbox.tool === 'remove') sandboxEdit({ op: 'setRoad', edge: edgeIndex, player: null })
+      return
+    }
     act({ type: 'placeRoad', player: me, edge: edgeIndex })
   }
 
@@ -331,6 +430,7 @@ export default function GameScreen({ game, setGame, onHome }) {
   }
 
   function handleHexClick(hexIndex) {
+    if (sandbox) { sandboxEdit({ op: 'setRobber', hex: hexIndex }); return }
     act({ type: 'moveRobber', player: me, hex: hexIndex })
   }
 
@@ -364,10 +464,17 @@ export default function GameScreen({ game, setGame, onHome }) {
     act({ type: 'endTurn' })
   }
 
+  function finishSandbox() {
+    if (sandboxEdit({ op: 'resume' })) setSandbox(null)
+  }
+
   // Header status chip: reflects robber/discard/road-building state or the setup prompt.
   let status = null
   let statusAlert = false
-  if (robber?.stage === 'discard') {
+  if (sandbox) {
+    status = 'Sandbox: editing position'
+    statusAlert = true
+  } else if (robber?.stage === 'discard') {
     const p = gameState.players[robber.pending[0]]
     status = `${p.name} must discard ${robber.required[robber.pending[0]]} cards`
     statusAlert = true
@@ -392,7 +499,7 @@ export default function GameScreen({ game, setGame, onHome }) {
   const canBuyDev = !isSetup && !robber && !roadBuilding && winner === null
   const canTradeOrBuild = !isSetup && !preRoll
   const canPlayDev = gameState.phase === 'play' && !gameState.devCardPlayedThisTurn && !robber && !roadBuilding && winner === null
-  const showActions = !robber && !winner && !roadBuilding
+  const showActions = !robber && !winner && !roadBuilding && !sandbox
 
   return (
     <div className="g-app">
@@ -402,6 +509,11 @@ export default function GameScreen({ game, setGame, onHome }) {
         <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`} · {DICE_LABELS[gameState.diceMode].split(' (')[0]} dice</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
+          {!sandbox && (
+            <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
+              Edit position
+            </button>
+          )}
           <AudioControls />
         </div>
       </header>
@@ -418,10 +530,10 @@ export default function GameScreen({ game, setGame, onHome }) {
               robberHex={gameState.robberHex}
               onIntersectionClick={handleIntersectionClick}
               onEdgeClick={handleEdgeClick}
-              onHexClick={robber?.stage === 'move' ? handleHexClick : undefined}
+              onHexClick={(sandbox ? sandbox.tool === 'robber' : robber?.stage === 'move') ? handleHexClick : undefined}
             />
           </BoardViewport>
-          {winner && (
+          {winner && !sandbox && (
             <div className="g-winner">
               <div className="g-winner-card" style={{ background: winner.colour }}>
                 🏆 {winner.name} wins!
@@ -437,7 +549,17 @@ export default function GameScreen({ game, setGame, onHome }) {
             largestArmy={gameState.largestArmy}
             longestRoad={gameState.longestRoad}
           />
-          {gameState.diceMode === 'scripted' && (
+          {sandbox && (
+            <SandboxPanel
+              key={`${sandbox.player}:${game.actions.length}`}
+              state={gameState}
+              sandbox={sandbox}
+              setSandbox={setSandbox}
+              onEdit={sandboxEdit}
+              onDone={finishSandbox}
+            />
+          )}
+          {gameState.diceMode === 'scripted' && !sandbox && (
             <ScriptedDice
               key={formatDiceQueue(gameState.diceQueue)}
               queue={gameState.diceQueue}
@@ -466,12 +588,12 @@ export default function GameScreen({ game, setGame, onHome }) {
           ))}
         </div>
 
-        {!isSetup && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
+        {!isSetup && !sandbox && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
 
         <div className="g-actions">
           {gameState.dice && (
             <span className="g-dice">
-              🎲 {gameState.dice.die1} + {gameState.dice.die2} = {gameState.dice.total}
+              🎲 {gameState.dice.total === null ? 'rolled' : `${gameState.dice.die1} + ${gameState.dice.die2} = ${gameState.dice.total}`}
               {gameState.dice.isRobber && <span className="g-dice-robber">Robber!</span>}
             </span>
           )}

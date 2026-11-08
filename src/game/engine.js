@@ -5,6 +5,7 @@
 import * as A from './gameActions.js';
 import { createGame } from './gameState.js';
 import { setDiceQueue } from './dice.js';
+import { sandboxEdit } from './sandbox.js';
 
 const HANDLERS = {
   roll: s => A.performRoll(s),
@@ -26,6 +27,7 @@ const HANDLERS = {
   acceptTrade: (s, a) => A.acceptTrade(s, a.player),
   declineTrade: (s, a) => A.declineTrade(s, a.player),
   setDiceQueue: (s, a) => setDiceQueue(s, a.queue),
+  sandbox: (s, a) => sandboxEdit(s, a.edit),
 };
 
 export const ACTION_TYPES = Object.keys(HANDLERS);
