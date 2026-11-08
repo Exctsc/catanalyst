@@ -33,6 +33,7 @@ src/
     GameScreen.jsx           the play screen + sandbox panel, replay panel, analysis tab, trade UI
     HexBoard.jsx             SVG board; renders only from gameRules geometry + gameState.board
     BoardViewport.jsx        zoom/pan frame around the board (CSS transform)
+    BoardArt.jsx             hand-drawn SVG art: terrain icons, sea + beach, settlement, city, robber
   game/                      pure, no React — all tested in Node
     gameRules.js             geometry: vertices, hexes, edges, adjacency, port slots, board extents, standard counts, DEFAULT_BOARD
     gameState.js             createGame(options) → initial state; default export is a fixed-seed game for tests
@@ -159,6 +160,13 @@ none).
   Monopoly). Follows the replay position when replaying.
 
 **Shell**
+- **Board art** (added after the run, at Tony's request): drawn in SVG in `BoardArt.jsx`, no image
+  files or licences. The island sits on a sea with a sand beach; each tile has a soft bevel and
+  an illustration above its token (pines, sheep, wheat, bricks, snowy peaks; a cactus fills the
+  desert); settlements are houses, cities a tall house with a hall, the robber a pawn standing
+  in the illustration's place; roads get a highlight. Art, sea and tokens hide while tracing a
+  screenshot so the image shows through. All art ignores the pointer, so click targets are
+  unchanged.
 - Home screen with the two-sentence pitch, new game options, saved games, editor, import.
 - Zoom and pan: wheel / trackpad pinch / touch pinch, 0.5×–3×, pan limits keep 120px on screen,
   +/−/reset buttons. Drag vs click threshold 12px; pointer capture is taken only once a drag is
@@ -266,6 +274,7 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 - **Analysis numbers**: pip totals are structural (the robber is ignored), while "expected cards per roll" skips the robbed hex and ignores bank shortages. Income is attributed by the action that caused each hand change; spending on builds, cards given in trades and sandbox edits are not counted.
 - **Native `<select>` dropdowns** were driven with the browser tool's form input during verification (the preview pane cannot drive a native select popup with clicks or keys). Board clicks always used real pointer travel.
 
+- **Board art was hand-drawn rather than taken from a free pack** so there is nothing to license or bundle; a CC0 set (e.g. Kenney) could replace `BoardArt.jsx` later.
 - **Fonts were enlarged after the run at Tony's request** (CSS sizes ~15% up, Home larger still), an explicit exception to "no restyling".
 - **Screenshot number reading** trusts the token's structure (pips, digit count, loops, red ink) rather than recognising digit shapes, so it works across token styles without OCR; desert hexes are always left without a number.
 - **The Home file import is relabelled "Open a Catanalyst game file"**: online platforms don't export games, so it is presented as moving Catanalyst's own exports between browsers, and "Board from a screenshot" is the way in for online games.

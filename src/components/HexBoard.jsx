@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   EDGES, VERTICES, HEX_CENTERS, HEX_TO_VERTICES, BOARD_WIDTH, BOARD_HEIGHT, BOARD_MIN_X, BOARD_MIN_Y,
 } from '../game/gameRules.js';
+import { TerrainArt, SeaAndBeach, Settlement, City, Robber } from './BoardArt.jsx';
 
 const RESOURCE_COLORS = {
   hills:     '#C1440E',
@@ -25,10 +26,17 @@ function portLabel(type) {
   return type === 'generic' ? '3:1' : `2:1 ${type[0].toUpperCase()}${type.slice(1)}`;
 }
 
-// HEX_TO_VERTICES lists each hex's corners in angle order, so they trace the polygon.
-function hexPoints(hexIndex) {
-  return HEX_TO_VERTICES[hexIndex].map(v => `${VERTICES[v].x},${VERTICES[v].y}`).join(' ');
+// HEX_TO_VERTICES lists each hex's corners in angle order, so they trace the
+// polygon; `scale` shrinks or grows it about the hex centre (bevel, beach).
+function hexPoints(hexIndex, scale = 1) {
+  const { cx, cy } = HEX_CENTERS[hexIndex];
+  return HEX_TO_VERTICES[hexIndex]
+    .map(v => `${cx + (VERTICES[v].x - cx) * scale},${cy + (VERTICES[v].y - cy) * scale}`).join(' ');
 }
+
+// Illustration sits above the number token; the desert's fills the hex.
+const ART_Y = -24;
+const TOKEN_Y = 9;
 
 function Token({ cx, cy, number }) {
   const pips = 6 - Math.abs(7 - number);
@@ -157,6 +165,7 @@ function Road({ edgeIndex, colour }) {
     <g>
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#222" strokeWidth={9} strokeLinecap="round" />
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={colour} strokeWidth={5.5} strokeLinecap="round" />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#fff" strokeOpacity={0.3} strokeWidth={1.6} strokeLinecap="round" />
     </g>
   );
 }
@@ -167,24 +176,6 @@ const VB_W = BOARD_WIDTH;
 const VB_H = BOARD_HEIGHT;
 const VB_MIN_X = BOARD_MIN_X;
 const VB_MIN_Y = BOARD_MIN_Y;
-
-function RobberMarker({ cx, cy }) {
-  return (
-    <g pointerEvents="none">
-      <circle cx={cx} cy={cy - 30} r={10} fill="#2C3E50" stroke="white" strokeWidth={1.5} />
-      <text
-        x={cx} y={cy - 30}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={12}
-        fontWeight="bold"
-        fill="white"
-      >
-        R
-      </text>
-    </g>
-  );
-}
 
 export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLabels = null, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
@@ -204,29 +195,39 @@ export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLa
       viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
       style={{ display: 'block' }}
     >
+      {hexOpacity === 1 && <SeaAndBeach hexes={hexes} hexPoints={hexPoints} />}
       {/* Board editor tracing: a screenshot drawn under the hexes, in board units. */}
       {underlay && (
         <image href={underlay.href} x={underlay.x} y={underlay.y} width={underlay.width} height={underlay.height} preserveAspectRatio="none" pointerEvents="none" />
       )}
-      {hexes.map(({ x, y, resource, number }, i) => (
-        <g
-          key={i}
-          data-hex={i}
-          onClick={onHexClick ? () => onHexClick(i) : undefined}
-          style={onHexClick ? { cursor: 'pointer' } : undefined}
-        >
-          <polygon
-            points={hexPoints(i)}
-            fill={RESOURCE_COLORS[resource]}
-            fillOpacity={hexOpacity}
-            stroke={selectedHex === i || hexOpacity < 1 ? '#fff' : '#333'}
-            strokeWidth={selectedHex === i ? 4 : 2}
-          />
-          {/* While tracing a screenshot its own tokens show through instead. */}
-          {number !== null && hexOpacity === 1 && <Token cx={x} cy={y} number={number} />}
-          {robberHex === i && <RobberMarker cx={x} cy={y} />}
-        </g>
-      ))}
+      {hexes.map(({ x, y, resource, number }, i) => {
+        // While tracing a screenshot, its own art and tokens show through instead.
+        const art = hexOpacity === 1;
+        return (
+          <g
+            key={i}
+            data-hex={i}
+            onClick={onHexClick ? () => onHexClick(i) : undefined}
+            style={onHexClick ? { cursor: 'pointer' } : undefined}
+          >
+            <polygon
+              points={hexPoints(i)}
+              fill={RESOURCE_COLORS[resource]}
+              fillOpacity={hexOpacity}
+              stroke={selectedHex === i || !art ? '#fff' : 'rgba(0,0,0,0.45)'}
+              strokeWidth={selectedHex === i ? 4 : 2}
+            />
+            {art && <polygon points={hexPoints(i, 0.86)} fill="none" stroke="#fff" strokeOpacity={0.22} strokeWidth={2} pointerEvents="none" />}
+            {art && robberHex !== i && (
+              number !== null
+                ? <TerrainArt terrain={resource} x={x} y={y + ART_Y} scale={1.2} />
+                : <TerrainArt terrain={resource} x={x} y={y} scale={1.8} />
+            )}
+            {art && number !== null && <Token cx={x} cy={y + TOKEN_Y} number={number} />}
+            {robberHex === i && <Robber x={x} y={number !== null ? y + ART_Y + 2 : y} />}
+          </g>
+        );
+      })}
       {board.ports.map((port, i) => (
         <Port key={i} port={port} selected={selectedPort === i} onClick={onPortClick ? () => onPortClick(i) : undefined} />
       ))}
@@ -238,31 +239,10 @@ export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLa
       })}
       {VERTICES.map(({ x, y }, i) => {
         const cityColour = cityMap.get(i);
-        if (cityColour) {
-          const s = 16;
-          return (
-            <rect
-              key={i}
-              x={x - s / 2} y={y - s / 2}
-              width={s} height={s}
-              rx={2}
-              fill={cityColour}
-              stroke="white"
-              strokeWidth={2}
-            />
-          );
-        }
+        if (cityColour) return <City key={i} x={x} y={y} colour={cityColour} />;
         const colour = settlementMap.get(i);
-        return (
-          <circle
-            key={i}
-            cx={x} cy={y}
-            r={colour ? 7 : 4}
-            fill={colour || 'white'}
-            stroke={colour ? 'white' : '#333'}
-            strokeWidth={colour ? 2 : 1.5}
-          />
-        );
+        if (colour) return <Settlement key={i} x={x} y={y} colour={colour} />;
+        return <circle key={i} cx={x} cy={y} r={4} fill="white" stroke="#333" strokeWidth={1.5} pointerEvents="none" />;
       })}
       {/* Analysis overlay: pip value at each open intersection. Never clickable. */}
       {pipLabels && pipLabels.map(({ vertex, pips }) => (
