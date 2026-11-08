@@ -1,19 +1,12 @@
-# Blockers and what's left for Tony
+# What's left for Tony
 
-Items from `FINISH.md` that the autonomous run could not finish, and the things only you can do.
+Nothing in `FINISH.md` is blocked any more. These are the things only you can do.
 
-## Blocked: Phase 0, create the private GitHub repo and push
+## Done after the run: GitHub repo
 
-- **Tried:** `gh auth status` succeeds (logged in as `Exctsc`). `gh repo view Exctsc/catanalyst`
-  confirmed no repo exists yet. `gh repo create catanalyst --private --source=. --remote=origin --push`
-  was refused by the Claude Code permission classifier (flagged as data exfiltration), so no repo was
-  created and nothing was pushed. That box stays unchecked in `FINISH.md`.
-- **Not retried** by other means on purpose: the denial is a permission decision, not a bug.
-- **To do:** create the repo and push everything (all work is committed on `main`):
-
-  ```bash
-  gh repo create catanalyst --private --source=. --remote=origin --push
-  ```
+The private repo `Exctsc/catanalyst` was created and `main` pushed once you approved it (the
+autonomous attempt had been refused by the permission classifier). Later commits push with
+`git push`.
 
 ## For you (from FINISH.md "Human steps")
 

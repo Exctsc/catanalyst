@@ -22,7 +22,7 @@ Real-time online multiplayer is deliberately out of scope (Colonist already does
 ## Phase 0: Housekeeping
 
 - [x] Untrack tooling files: `git rm --cached` `.claude/settings.local.json`, `.claude/.headroom_wrap_marker.json`, `.serena/project.yml` (they are now in `.gitignore`). Commit.
-- [ ] If `gh auth status` succeeds, create a **private** GitHub repo named `catanalyst` and push `main`, then push after every later commit. If `gh` is not installed or not authenticated, skip this item, note it in `BLOCKERS.md`, and continue.
+- [x] If `gh auth status` succeeds, create a **private** GitHub repo named `catanalyst` and push `main`, then push after every later commit. If `gh` is not installed or not authenticated, skip this item, note it in `BLOCKERS.md`, and continue.
 - [x] Remove `socket.io-client` from dependencies and delete the Chat tab, `chatMessages` state and the Socket.io TODO. The sidebar keeps the Game Log.
 
 ## Phase 1: Rules complete

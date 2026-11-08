@@ -3,8 +3,8 @@
 > Stack: React 19 + Vite 8, plain JavaScript (no TypeScript), no UI libraries, React is the only
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
-> **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 1–3 is done.
-> Phase 0's GitHub repo step is blocked (see `BLOCKERS.md`). `npm test`: 614 assertions, 0
+> **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 614 assertions, 0
 > failures across 29 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
