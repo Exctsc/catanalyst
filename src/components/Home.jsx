@@ -37,8 +37,8 @@ export default function Home({ error, games = [], onResume, onDelete, onImport, 
           <section className="g-side-section">
             <strong>Board from a screenshot</strong>
             <span className="g-dim">
-              Playing online? Load a screenshot of the board, line it up, and the terrain fills in.
-              You add the numbers and ports, then study or play it here.
+              Playing online? Load a screenshot of the board, click two hexes to line it up, and the
+              terrain and numbers fill in. Set the ports, then study or play it here.
             </span>
             <FilePicker label="Choose screenshot" accept="image/*" onFile={onScreenshot} />
           </section>

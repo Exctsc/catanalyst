@@ -4,8 +4,8 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 629 assertions, 0
-> failures across 30 suites. Build and lint are clean. The full product was verified end to end
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 652 assertions, 0
+> failures across 31 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
 ---
@@ -121,8 +121,14 @@ none).
   top-left hex, then the bottom-right hex (`alignFromHexes` in `boardImage.js` turns those two
   image points into a placement); each hex is then sampled on a ring at 55% of its radius, the
   median colour matched in OKLab to reference shades (`classifyColor`), and the terrain filled in.
-  Our number tokens hide while the image is shown so the screenshot's own numbers can be read;
-  numbers and ports are set by hand. Verified in the browser on a real jpg: all 19 hexes right.
+  **Numbers are read too** (`readToken`/`detectNumbers`): within each hex the token is the pale
+  patch holding the most separate ink marks; small marks low in it are pips (a blurred bar is
+  counted by its length), tall marks are digits. Pips pick the pair (1→2/12, 2→3/11, 3→4/10,
+  4→5/9, 5→6/8), two digits mean 10–12, a closed loop makes 9 not 5, two loops make 8 not 6, and
+  red ink forces 6/8. Unread tokens are left blank and counted in the panel. Ports are manual.
+  Verified on a real Colonist screenshot: all 19 terrains and all 18 numbers right, for six
+  different click positions (±20px) and at 100/60/45% size (35%: 17 of 18). Our own low-res
+  (800px) board reads about 11 of 18; small cream tokens blur, and validation shows the gaps.
 - **Board codes**: `1` + 27 base64url chars (7 bits per hex, 3 per port); `?board=<code>` opens it
   in the editor; Share section with code field, Copy link and Open link.
 - **Dice modes** chosen at start: Random; Balanced (36-combination deck, reshuffled when fewer
@@ -153,7 +159,7 @@ none).
 
 ## Tests (`npm test`)
 
-30 suites, 629 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
+31 suites, 652 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
 `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound`. Added in
 the finish run: `board` (state-owned layout), `roadblock`, `connectivity`, `supply`,
 `playerindex`, `turncounter`, `playertrade`, `engine` (rng, dispatch, full scripted game twice +
@@ -161,7 +167,9 @@ replay), `boardgen` (400 seeds; validation), `boardcode` (300 boards round-trip,
 `dice` (balanced distribution over 3,600 rolls, scripted queue, mid-game edits replay), `sandbox`,
 `replay` (stepping, jump-to-turn, branching), `savefile` (round trip, 13 malformed-file cases,
 tolerant library parsing), `analysis`. Added after the run: `boardimage` (colour classification,
-whole synthetic screenshots with tokens, pieces and noise, two-click alignment).
+whole synthetic screenshots with tokens, pieces and noise, two-click alignment) and `tokens`
+(synthetic number tokens in a 5x7 font: every number, square and round tokens, a pale decoy,
+blurred pip bars, a whole board).
 
 Fixture changes made because a rule changed (no assertion was weakened): play-phase settlement
 fixtures in `win` and `longestroad` gained a road to the spot (connectivity rule); the city-win
@@ -220,9 +228,9 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
     button stays as is, and the code field and Open link still work.
 11. The game screen is desktop-first; narrow screens work but are cramped. Below 1100px the
     header brand shows only the ⬡ icon so the status chip keeps its room.
-12. **Screenshot tracing reads terrain only, from colour, and assumes the standard orientation**
-    (rows of 3-4-5-4-3, pointy-top hexes). A themed or rotated board, or heavy pieces covering a
-    hex, can misread a hex; the user corrects it in the editor. Numbers and ports are manual.
+12. **Screenshot tracing assumes the standard orientation** (rows of 3-4-5-4-3, pointy-top hexes)
+    and reads terrain and numbers, not ports. A themed or rotated board, a robber or piece sitting
+    on a token, or a very small screenshot can misread a hex; the user corrects it in the editor.
 
 ---
 
@@ -244,6 +252,7 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 - **Native `<select>` dropdowns** were driven with the browser tool's form input during verification (the preview pane cannot drive a native select popup with clicks or keys). Board clicks always used real pointer travel.
 
 - **Fonts were enlarged after the run at Tony's request** (CSS sizes ~15% up, Home larger still), an explicit exception to "no restyling".
+- **Screenshot number reading** trusts the token's structure (pips, digit count, loops, red ink) rather than recognising digit shapes, so it works across token styles without OCR; desert hexes are always left without a number.
 - **The Home file import is relabelled "Open a Catanalyst game file"**: online platforms don't export games, so it is presented as moving Catanalyst's own exports between browsers, and "Board from a screenshot" is the way in for online games.
 
 **Earlier sessions (still current)**

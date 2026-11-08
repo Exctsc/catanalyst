@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BOARD_WIDTH, BOARD_HEIGHT, BOARD_MIN_X, BOARD_MIN_Y, TILE_TO_RESOURCE } from '../game/gameRules'
-import { detectTerrains, alignFromHexes, toImagePixel } from '../game/boardImage'
+import { detectTerrains, detectNumbers, alignFromHexes, toImagePixel } from '../game/boardImage'
 import { generateBoard, validateBoard, TERRAINS, NUMBER_TOKENS, PORT_TYPES } from '../game/boardGen'
 import { createRng, randomSeed } from '../game/rng'
 import { encodeBoard, boardLink } from '../game/boardCode'
@@ -33,7 +33,7 @@ function loadImage(file) {
 const TRACE_STEPS = {
   top: 'Click the middle of the top-left hex in your screenshot.',
   bottom: 'Now click the middle of the bottom-right hex.',
-  done: 'Lined up and read. Check each hex, then set the numbers and ports.',
+  done: 'Terrain and numbers read. Check them against your screenshot, then set the ports.',
 }
 
 function TracePanel({ trace, onLoad, onRealign, onRemove }) {
@@ -41,7 +41,7 @@ function TracePanel({ trace, onLoad, onRealign, onRemove }) {
     return (
       <div className="g-side-section">
         <strong>Board from a screenshot</strong>
-        <span className="g-dim">Load a screenshot of an online game, click two hexes to line it up, and the terrain fills in. You set numbers and ports.</span>
+        <span className="g-dim">Load a screenshot of an online game, click two hexes to line it up, and the terrain and numbers fill in. You set the ports.</span>
         <FilePicker label="Choose screenshot" accept="image/*" onFile={onLoad} />
       </div>
     )
@@ -50,6 +50,9 @@ function TracePanel({ trace, onLoad, onRealign, onRemove }) {
     <div className="g-side-section">
       <strong>{trace.step === 'done' ? 'Screenshot read' : 'Line up the screenshot'}</strong>
       <span className={trace.step === 'done' ? 'g-ok' : undefined}>{TRACE_STEPS[trace.step]}</span>
+      {trace.step === 'done' && trace.unread > 0 && (
+        <span className="g-errors">{trace.unread} number{trace.unread > 1 ? 's' : ''} could not be read: click {trace.unread > 1 ? 'those hexes' : 'that hex'} to set {trace.unread > 1 ? 'them' : 'it'}.</span>
+      )}
       {trace.step !== 'done' && <span className="g-dim">Zoom with the wheel or the + button if the hexes are small.</span>}
       <div className="g-row">
         {trace.step === 'done' && <button className="g-btn" onClick={onRealign}>Line up again</button>}
@@ -131,12 +134,11 @@ export default function BoardEditor({ initialBoard, initialImageFile = null, onS
     const q = toImagePixel(pt, trace.placement, trace.naturalWidth)
     if (trace.step === 'top') { setTrace({ ...trace, q0: q, step: 'bottom' }); return }
     const placement = alignFromHexes(trace.q0, q, trace.naturalWidth)
-    setTrace({ ...trace, placement, step: 'done' })
-    detect(placement)
+    setTrace({ ...trace, placement, step: 'done', unread: detect(placement) })
   }
 
-  // Read every pixel once, then sample each hex. Deserts lose their number;
-  // everything else keeps its number for the user to correct.
+  // Read every pixel once, then read each hex's terrain and number token.
+  // Returns how many non-desert hexes had no readable number.
   function detect(placement) {
     const canvas = document.createElement('canvas')
     canvas.width = trace.naturalWidth
@@ -150,7 +152,10 @@ export default function BoardEditor({ initialBoard, initialImageFile = null, onS
       return [data[i], data[i + 1], data[i + 2]]
     }
     const tiles = detectTerrains(getPixel, placement, trace.naturalWidth, board.tiles)
-    edit(b => ({ ...b, tiles, numbers: b.numbers.map((n, i) => (tiles[i] === 'desert' ? null : n)) }))
+    const read = detectNumbers(getPixel, placement, trace.naturalWidth)
+    const numbers = tiles.map((t, i) => (t === 'desert' ? null : read[i]))
+    edit(b => ({ ...b, tiles, numbers }))
+    return numbers.filter((n, i) => n === null && tiles[i] !== 'desert').length
   }
 
   return (
