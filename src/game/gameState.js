@@ -36,7 +36,8 @@ export function createGame({ seed = 1, board = DEFAULT_BOARD } = {}) {
     // Board layout for this game: tiles (terrain per hex), numbers (token per
     // hex, null on the desert) and ports ({ type, vertices, x, y } per slot).
     board,
-    robberHex: board.tiles.indexOf('desert'),
+    // On the desert; a free-mode board without one starts with the robber off-board.
+    robberHex: board.tiles.includes('desert') ? board.tiles.indexOf('desert') : null,
     // Non-null while a rolled 7 is being resolved:
     //   { stage: 'discard', pending: [playerIndexes], required: { playerIndex: count } }
     //   { stage: 'move' }

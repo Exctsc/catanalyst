@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
-import { generateBoard, isBalanced } from '../src/game/boardGen.js';
+import { generateBoard, isBalanced, validateBoard } from '../src/game/boardGen.js';
 import { createRng } from '../src/game/rng.js';
 import { DEFAULT_BOARD, HEX_ADJACENCY, STANDARD_TILE_COUNTS, STANDARD_NUMBERS, STANDARD_PORT_COUNTS, PORTS } from '../src/game/gameRules.js';
 import { createGame } from '../src/game/gameState.js';
@@ -53,6 +53,24 @@ check('same seed, same board', isDeepStrictEqual(generateBoard(createRng(5)), ge
 const [board] = generateBoard(createRng(5), { balanced: true });
 const g = createGame({ seed: 5, board });
 check('game starts with the robber on the generated desert', g.board.tiles[g.robberHex] === 'desert');
+
+// --- validateBoard (board editor)
+check('default board is valid', validateBoard(DEFAULT_BOARD).length === 0);
+check('generated boards are valid', validateBoard(generateBoard(createRng(11), { balanced: true })[0]).length === 0);
+const twoDeserts = { ...DEFAULT_BOARD, tiles: DEFAULT_BOARD.tiles.map((t, i) => i === 0 ? 'desert' : t) };
+const errs = validateBoard(twoDeserts);
+check('wrong terrain counts reported', errs.some(e => e.includes('2 desert')) && errs.some(e => e.includes('mountains')));
+check('free mode skips the counts', validateBoard(twoDeserts, { free: true }).length === 0);
+const sevenToken = { ...DEFAULT_BOARD, numbers: DEFAULT_BOARD.numbers.map((n, i) => i === 0 ? 7 : n) };
+check('a 7 token is rejected even in free mode', validateBoard(sevenToken, { free: true }).length === 1);
+const numberedDesert = { ...DEFAULT_BOARD, numbers: DEFAULT_BOARD.numbers.map((n, i) => i === 9 ? 5 : n) };
+check('a numbered desert is reported', validateBoard(numberedDesert).some(e => e.includes('desert takes no number')));
+const portSwap = { ...DEFAULT_BOARD, ports: DEFAULT_BOARD.ports.map((p, i) => i === 0 ? { ...p, type: 'ore' } : p) };
+check('wrong port counts reported', validateBoard(portSwap).some(e => e.startsWith('Ports')));
+check('bad port type rejected in free mode', validateBoard({ ...DEFAULT_BOARD, ports: DEFAULT_BOARD.ports.map(p => ({ ...p, type: 'gold' })) }, { free: true }).length === 1);
+check('malformed board rejected', validateBoard({ tiles: [] }).length === 1 && validateBoard(null).length === 1);
+const noDesert = { ...DEFAULT_BOARD, tiles: DEFAULT_BOARD.tiles.map(t => t === 'desert' ? 'hills' : t) };
+check('a desert-less free board starts with the robber off-board', createGame({ board: noDesert }).robberHex === null);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

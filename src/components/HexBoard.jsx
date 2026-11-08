@@ -67,7 +67,7 @@ function Token({ cx, cy, number }) {
   );
 }
 
-function Port({ port }) {
+function Port({ port, selected, onClick }) {
   const { fill, text } = PORT_STYLE[port.type];
   const label = portLabel(port.type);
   const w = label.length * 6.5 + 10;
@@ -76,7 +76,7 @@ function Port({ port }) {
   const A = VERTICES[va];
   const B = VERTICES[vb];
   return (
-    <g>
+    <g onClick={onClick} style={onClick ? { cursor: 'pointer' } : undefined}>
       {/* dock lines connecting the harbour to the two coastal intersections it serves */}
       <line x1={port.x} y1={port.y} x2={A.x} y2={A.y} stroke="rgba(150,110,60,0.65)" strokeWidth={2.5} strokeDasharray="3 3" />
       <line x1={port.x} y1={port.y} x2={B.x} y2={B.y} stroke="rgba(150,110,60,0.65)" strokeWidth={2.5} strokeDasharray="3 3" />
@@ -85,8 +85,8 @@ function Port({ port }) {
         width={w} height={h}
         rx={4}
         fill={fill}
-        stroke="rgba(0,0,0,0.35)"
-        strokeWidth={1}
+        stroke={selected ? '#fff' : 'rgba(0,0,0,0.35)'}
+        strokeWidth={selected ? 3 : 1}
       />
       <text
         x={port.x} y={port.y}
@@ -186,7 +186,7 @@ function RobberMarker({ cx, cy }) {
   );
 }
 
-export default function HexBoard({ board, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick }) {
+export default function HexBoard({ board, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
   const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
@@ -214,15 +214,15 @@ export default function HexBoard({ board, placements = [], roads = [], cities = 
           <polygon
             points={hexPoints(i)}
             fill={RESOURCE_COLORS[resource]}
-            stroke="#333"
-            strokeWidth={2}
+            stroke={selectedHex === i ? '#fff' : '#333'}
+            strokeWidth={selectedHex === i ? 4 : 2}
           />
           {number !== null && <Token cx={x} cy={y} number={number} />}
           {robberHex === i && <RobberMarker cx={x} cy={y} />}
         </g>
       ))}
       {board.ports.map((port, i) => (
-        <Port key={i} port={port} />
+        <Port key={i} port={port} selected={selectedPort === i} onClick={onPortClick ? () => onPortClick(i) : undefined} />
       ))}
       {EDGES.map((_, edgeIndex) => {
         const colour = roadMap.get(edgeIndex);

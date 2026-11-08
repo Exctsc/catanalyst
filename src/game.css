@@ -551,3 +551,84 @@
   padding: 4px 6px;
   font-size: 13px;
 }
+
+/* ---------- Shared bits for the editor / home / sidebar panels ---------- */
+.g-header button.g-brand {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.g-side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--g-border);
+  font-size: 13px;
+}
+.g-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: capitalize;
+}
+.g-field select,
+.g-field input[type='text'] {
+  flex: 1 1 auto;
+  background: var(--g-panel);
+  color: var(--g-text);
+  border: 1px solid var(--g-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  text-transform: none;
+}
+.g-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.g-ok {
+  color: var(--res-sheep);
+}
+.g-errors {
+  margin: 0;
+  padding-left: 18px;
+  color: #ef6a3c;
+}
+.g-dim {
+  color: var(--g-text-dim);
+}
+
+/* ---------- Home ---------- */
+.g-home {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  padding: 40px 16px;
+}
+.g-home-card {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.g-home-card h1 {
+  margin: 0;
+  font-size: 34px;
+  color: var(--g-accent);
+}
+.g-home-card p {
+  margin: 0;
+  color: var(--g-text-dim);
+  line-height: 1.5;
+}
+.g-home-card .g-side-section {
+  background: var(--g-panel);
+  border: 1px solid var(--g-border);
+  border-radius: 10px;
+}
