@@ -43,7 +43,7 @@ Architecture first, because replay depends on it:
 
 Then the features:
 
-- [ ] **Board generator**: standard random board, with a "balanced" option (no two 6/8 tokens adjacent, no two identical number tokens adjacent). Tested over many seeds.
+- [x] **Board generator**: standard random board, with a "balanced" option (no two 6/8 tokens adjacent, no two identical number tokens adjacent). Tested over many seeds.
 - [ ] **Board editor**: click a hex to set its resource, set its number token, set each port's type. Validate against standard counts (with a "free mode" toggle to skip validation). Start a game from the edited board.
 - [ ] **Shareable board codes**: encode a board as a short URL-safe string; `?board=<code>` loads it. Round-trip tested.
 - [ ] **Dice modes** chosen at game start: Random, Balanced (36-combination deck, reshuffled when it runs low, like Colonist's balanced dice), and Scripted (a queue of totals or die pairs typed in advance, editable mid-game; falls back to Random when empty). Tested.

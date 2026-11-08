@@ -115,3 +115,13 @@ export const DEFAULT_BOARD = {
   numbers: [2, 3, 3, 4, 4, 5, 5, 6, 6, null, 8, 8, 9, 9, 10, 10, 11, 11, 12],
   ports: PORTS,
 };
+
+// HEX_ADJACENCY[h] — hexes sharing an edge (two corners) with hex h.
+export const HEX_ADJACENCY = HEX_TO_VERTICES.map((verts, h) =>
+  HEX_TO_VERTICES.map((_, o) => o).filter(o =>
+    o !== h && HEX_TO_VERTICES[o].filter(v => verts.includes(v)).length === 2));
+
+// Standard piece counts for a 19-hex board.
+export const STANDARD_TILE_COUNTS = { forest: 4, pasture: 4, fields: 4, hills: 3, mountains: 3, desert: 1 };
+export const STANDARD_NUMBERS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12];
+export const STANDARD_PORT_COUNTS = { generic: 4, brick: 1, wood: 1, ore: 1, wheat: 1, sheep: 1 };

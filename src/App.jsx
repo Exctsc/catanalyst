@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { newGame, applyAction } from './game/engine'
-import { randomSeed } from './game/rng'
+import { randomSeed, createRng } from './game/rng'
+import { generateBoard } from './game/boardGen'
 import { portRate } from './game/gameActions'
 import { BOARD_WIDTH, BOARD_HEIGHT } from './game/gameRules'
 import HexBoard from './components/HexBoard'
@@ -236,7 +237,10 @@ function GameLog({ log, players }) {
 }
 
 export default function App() {
-  const [game, setGame] = useState(() => newGame({ seed: randomSeed() }))
+  const [game, setGame] = useState(() => {
+    const seed = randomSeed()
+    return newGame({ seed, board: generateBoard(createRng(seed))[0] })
+  })
   const gameState = game.state
   const [message, setMessage] = useState(null)
   const [tradeGive, setTradeGive] = useState('brick')
