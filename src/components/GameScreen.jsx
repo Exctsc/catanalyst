@@ -660,7 +660,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
         <span className="g-turn" style={{ color: currentPlayer.colour }}>{currentPlayer.name}'s turn</span>
         <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`} · {DICE_LABELS[gameState.diceMode].split(' (')[0]} dice</span>
         <div className="g-header-right">
-          {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
+          {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`} title={status}>{status}</span>}
           {!sandbox && !replaying && (
             <>
               <button className="g-btn" onClick={onExport}>Export</button>

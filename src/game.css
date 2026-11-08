@@ -688,3 +688,21 @@ a.g-btn {
   height: 2px;
   background: var(--g-text);
 }
+
+/* Keep the header one line tall whatever the status says, so the board never
+   jumps under the cursor when the status text changes. */
+.g-header > *,
+.g-header-right > * {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.g-header-right {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.g-header .g-status {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
