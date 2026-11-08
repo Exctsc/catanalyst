@@ -1,6 +1,6 @@
 import initialGameState from '../src/game/gameState.js';
 import { placeSettlement, placeRoad } from '../src/game/gameActions.js';
-import { EDGES, VERTICES, VERTEX_ADJACENCY, VERTEX_TO_HEXES } from '../src/game/gameRules.js';
+import { EDGES, VERTICES, VERTEX_ADJACENCY, VERTEX_TO_HEXES, TILE_TO_RESOURCE } from '../src/game/gameRules.js';
 
 let pass = 0, fail = 0;
 function check(name, cond) {
@@ -63,9 +63,7 @@ for (let t = 0; t < 8; t++) {
   const after = gs.players[p].resources;
   const total = Object.values(after).reduce((a, b) => a + b, 0) - Object.values(before).reduce((a, b) => a + b, 0);
   if (isSecond) {
-    const TILE_TO_RESOURCE = { mountains: 'ore', fields: 'wheat', forest: 'wood', hills: 'brick', pasture: 'sheep', desert: null };
-    const HEX_TILES = ['mountains','fields','forest','fields','hills','pasture','mountains','fields','forest','desert','forest','mountains','hills','pasture','pasture','fields','forest','hills','pasture'];
-    const expected = VERTEX_TO_HEXES[v].filter(h => TILE_TO_RESOURCE[HEX_TILES[h]]).length;
+    const expected = VERTEX_TO_HEXES[v].filter(h => TILE_TO_RESOURCE[gs.board.tiles[h]]).length;
     check(`turn ${t}: second settlement granted ${expected} resources`, total === expected);
   } else {
     check(`turn ${t}: first settlement granted nothing`, total === 0);

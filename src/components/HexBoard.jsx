@@ -1,11 +1,7 @@
 import { useState } from 'react';
 import {
-  EDGES, PORTS, BOARD_WIDTH, BOARD_HEIGHT, BOARD_MIN_X, BOARD_MIN_Y,
+  EDGES, VERTICES, HEX_CENTERS, HEX_TO_VERTICES, BOARD_WIDTH, BOARD_HEIGHT, BOARD_MIN_X, BOARD_MIN_Y,
 } from '../game/gameRules.js';
-
-const SIZE = 50;
-const H_SPACING = SIZE * Math.sqrt(3);
-const V_SPACING = SIZE * 1.5;
 
 const RESOURCE_COLORS = {
   hills:     '#C1440E',
@@ -16,44 +12,7 @@ const RESOURCE_COLORS = {
   desert:    '#DEB887',
 };
 
-// 19 tiles in 3-4-5-4-3 order; desert at index 9 (centre of middle row)
-const TILES = [
-  'mountains', 'fields',  'forest',
-  'fields',    'hills',   'pasture',  'mountains',
-  'fields',    'forest',  'desert',   'forest',   'mountains',
-  'hills',     'pasture', 'pasture',  'fields',
-  'forest',    'hills',   'pasture',
-];
-
-// Standard Catan numbers assigned in reading order, null = desert
-const NUMBERS = [2, 3, 3, 4, 4, 5, 5, 6, 6, null, 8, 8, 9, 9, 10, 10, 11, 11, 12];
-
-const ROWS = [3, 4, 5, 4, 3];
-
-// 54 unique intersection vertices derived from the hex grid
-const VERTICES = (() => {
-  const seen = new Set();
-  const verts = [];
-  ROWS.forEach((count, row) => {
-    const cy = row * V_SPACING;
-    for (let i = 0; i < count; i++) {
-      const cx = (i - (count - 1) / 2) * H_SPACING;
-      for (let k = 0; k < 6; k++) {
-        const angle = Math.PI / 6 + (k * Math.PI) / 3;
-        const vx = Math.round((cx + SIZE * Math.cos(angle)) * 1000) / 1000;
-        const vy = Math.round((cy + SIZE * Math.sin(angle)) * 1000) / 1000;
-        const key = `${vx},${vy}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          verts.push({ x: vx, y: vy });
-        }
-      }
-    }
-  });
-  return verts;
-})();
-
-// Port visual styling keyed by type (data + coastal vertices live in gameRules PORTS)
+// Port visual styling keyed by type (port data lives in gameState.board.ports)
 const PORT_STYLE = {
   generic: { fill: '#E0E0E0', text: '#444' },
   brick:   { fill: '#C1440E', text: 'white' },
@@ -66,13 +25,9 @@ function portLabel(type) {
   return type === 'generic' ? '3:1' : `2:1 ${type[0].toUpperCase()}${type.slice(1)}`;
 }
 
-function hexPoints(cx, cy) {
-  const pts = [];
-  for (let k = 0; k < 6; k++) {
-    const angle = Math.PI / 6 + (k * Math.PI) / 3;
-    pts.push(`${cx + SIZE * Math.cos(angle)},${cy + SIZE * Math.sin(angle)}`);
-  }
-  return pts.join(' ');
+// HEX_TO_VERTICES lists each hex's corners in angle order, so they trace the polygon.
+function hexPoints(hexIndex) {
+  return HEX_TO_VERTICES[hexIndex].map(v => `${VERTICES[v].x},${VERTICES[v].y}`).join(' ');
 }
 
 function Token({ cx, cy, number }) {
@@ -230,20 +185,13 @@ function RobberMarker({ cx, cy }) {
   );
 }
 
-export default function HexBoard({ placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick }) {
+export default function HexBoard({ board, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
   const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
-  const hexes = [];
-  let idx = 0;
-  ROWS.forEach((count, row) => {
-    const y = row * V_SPACING;
-    for (let i = 0; i < count; i++) {
-      const x = (i - (count - 1) / 2) * H_SPACING;
-      hexes.push({ x, y, resource: TILES[idx], number: NUMBERS[idx] });
-      idx++;
-    }
-  });
+  const hexes = HEX_CENTERS.map(({ cx, cy }, i) => ({
+    x: cx, y: cy, resource: board.tiles[i], number: board.numbers[i],
+  }));
 
   // Rendered at its natural size with no max-width fitting: scaling is the
   // job of the enclosing BoardViewport's transform, and letting CSS shrink the
@@ -262,7 +210,7 @@ export default function HexBoard({ placements = [], roads = [], cities = [], rob
           style={onHexClick ? { cursor: 'pointer' } : undefined}
         >
           <polygon
-            points={hexPoints(x, y)}
+            points={hexPoints(i)}
             fill={RESOURCE_COLORS[resource]}
             stroke="#333"
             strokeWidth={2}
@@ -271,7 +219,7 @@ export default function HexBoard({ placements = [], roads = [], cities = [], rob
           {robberHex === i && <RobberMarker cx={x} cy={y} />}
         </g>
       ))}
-      {PORTS.map((port, i) => (
+      {board.ports.map((port, i) => (
         <Port key={i} port={port} />
       ))}
       {EDGES.map((_, edgeIndex) => {

@@ -340,6 +340,7 @@ export default function App() {
           {message && <div className="g-toast">{message}</div>}
           <BoardViewport contentWidth={BOARD_WIDTH} contentHeight={BOARD_HEIGHT}>
             <HexBoard
+              board={gameState.board}
               placements={placements}
               roads={roadPlacements}
               cities={cityPlacements}

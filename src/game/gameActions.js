@@ -1,18 +1,5 @@
-import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES, PORTS } from './gameRules.js';
+import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES, TILE_TO_RESOURCE } from './gameRules.js';
 
-// Mirrors tile/number layout in HexBoard.jsx — kept in sync manually
-const HEX_TILES = [
-  'mountains', 'fields',  'forest',
-  'fields',    'hills',   'pasture',  'mountains',
-  'fields',    'forest',  'desert',   'forest',   'mountains',
-  'hills',     'pasture', 'pasture',  'fields',
-  'forest',    'hills',   'pasture',
-];
-const HEX_NUMBERS = [2, 3, 3, 4, 4, 5, 5, 6, 6, null, 8, 8, 9, 9, 10, 10, 11, 11, 12];
-const TILE_TO_RESOURCE = {
-  mountains: 'ore', fields: 'wheat', forest: 'wood',
-  hills: 'brick', pasture: 'sheep', desert: null,
-};
 const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
 
 // Single shared log helper — every action appends human-readable entries
@@ -74,8 +61,8 @@ export function collectResources(gameState, diceTotal) {
     buildings.forEach(({ intersectionIndex, amount }) => {
       VERTEX_TO_HEXES[intersectionIndex].forEach(hexIdx => {
         if (hexIdx === gameState.robberHex) return;
-        if (HEX_NUMBERS[hexIdx] !== diceTotal) return;
-        const resource = TILE_TO_RESOURCE[HEX_TILES[hexIdx]];
+        if (gameState.board.numbers[hexIdx] !== diceTotal) return;
+        const resource = TILE_TO_RESOURCE[gameState.board.tiles[hexIdx]];
         if (!resource) return;
         const payout = Math.min(amount, bank[resource]);
         if (payout <= 0) return;
@@ -272,7 +259,7 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
       // Second setup settlement grants one resource per adjacent producing hex
       if (isSecondSetupSettlement) {
         VERTEX_TO_HEXES[intersectionIndex].forEach(hexIdx => {
-          const resource = TILE_TO_RESOURCE[HEX_TILES[hexIdx]];
+          const resource = TILE_TO_RESOURCE[gameState.board.tiles[hexIdx]];
           if (!resource || bank[resource] < 1) return;
           resources[resource] += 1;
           bank[resource] -= 1;
@@ -446,7 +433,7 @@ export function portRate(gameState, playerIndex, resource) {
     ...player.cities.map(c => c.intersectionIndex),
   ]);
   let hasGeneric = false;
-  for (const port of PORTS) {
+  for (const port of gameState.board.ports) {
     if (!port.vertices.some(v => owned.has(v))) continue;
     if (port.type === resource) return 2;
     if (port.type === 'generic') hasGeneric = true;
@@ -570,8 +557,8 @@ export function moveRobber(gameState, playerIndex, hexIndex) {
   if (hexIndex === gameState.robberHex) return 'The robber must move to a different hex';
 
   const candidates = stealCandidates(gameState, playerIndex, hexIndex);
-  const tile = HEX_TILES[hexIndex];
-  const number = HEX_NUMBERS[hexIndex];
+  const tile = gameState.board.tiles[hexIndex];
+  const number = gameState.board.numbers[hexIndex];
   return log({
     ...gameState,
     robberHex: hexIndex,

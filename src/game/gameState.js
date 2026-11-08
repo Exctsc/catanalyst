@@ -1,5 +1,4 @@
-// Desert hex is at index 9 in the 3-4-5-4-3 TILES layout
-const DESERT_HEX_INDEX = 9;
+import { DEFAULT_BOARD } from './gameRules.js';
 
 function buildDevCardDeck() {
   const deck = [
@@ -36,7 +35,10 @@ const initialGameState = {
     lastSettlementIndex: null,
   },
   dice: null,
-  robberHex: DESERT_HEX_INDEX,
+  // Board layout for this game: tiles (terrain per hex), numbers (token per
+  // hex, null on the desert) and ports ({ type, vertices, x, y } per slot).
+  board: DEFAULT_BOARD,
+  robberHex: DEFAULT_BOARD.tiles.indexOf('desert'),
   // Non-null while a rolled 7 is being resolved:
   //   { stage: 'discard', pending: [playerIndexes], required: { playerIndex: count } }
   //   { stage: 'move' }
