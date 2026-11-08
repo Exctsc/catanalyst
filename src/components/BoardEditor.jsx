@@ -3,6 +3,8 @@ import { BOARD_WIDTH, BOARD_HEIGHT, TILE_TO_RESOURCE } from '../game/gameRules'
 import { generateBoard, validateBoard, TERRAINS, NUMBER_TOKENS, PORT_TYPES } from '../game/boardGen'
 import { createRng, randomSeed } from '../game/rng'
 import { encodeBoard, boardLink } from '../game/boardCode'
+import DiceSetup from './DiceSetup'
+import { diceOptions } from '../game/dice'
 import HexBoard from './HexBoard'
 import BoardViewport from './BoardViewport'
 
@@ -17,6 +19,8 @@ export default function BoardEditor({ initialBoard, onStart, onHome }) {
   // A shared non-standard board opens in free mode rather than looking broken.
   const [free, setFree] = useState(() => validateBoard(initialBoard).length > 0)
   const [copied, setCopied] = useState(false)
+  const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
+  const options = diceOptions(dice)
   const errors = validateBoard(board, { free })
   const link = boardLink(board, `${window.location.origin}${window.location.pathname}`)
 
@@ -118,7 +122,8 @@ export default function BoardEditor({ initialBoard, onStart, onHome }) {
               <button className="g-btn" onClick={() => shuffleBoard(false)}>Random</button>
               <button className="g-btn" onClick={() => shuffleBoard(true)}>Balanced</button>
             </div>
-            <button className="g-btn g-btn-primary" disabled={errors.length > 0} onClick={() => onStart(board)}>
+            <DiceSetup value={dice} onChange={setDice} />
+            <button className="g-btn g-btn-primary" disabled={errors.length > 0 || typeof options === 'string'} onClick={() => onStart({ board, ...options })}>
               Start game on this board
             </button>
           </div>

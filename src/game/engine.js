@@ -4,6 +4,7 @@
 // random draw comes from the seeded rng in state, the result is identical.
 import * as A from './gameActions.js';
 import { createGame } from './gameState.js';
+import { setDiceQueue } from './dice.js';
 
 const HANDLERS = {
   roll: s => A.performRoll(s),
@@ -24,6 +25,7 @@ const HANDLERS = {
   proposeTrade: (s, a) => A.proposeTrade(s, a.player, a.to, a.give, a.get),
   acceptTrade: (s, a) => A.acceptTrade(s, a.player),
   declineTrade: (s, a) => A.declineTrade(s, a.player),
+  setDiceQueue: (s, a) => setDiceQueue(s, a.queue),
 };
 
 export const ACTION_TYPES = Object.keys(HANDLERS);

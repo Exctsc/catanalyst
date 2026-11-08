@@ -1,4 +1,5 @@
 import { nextInt } from './rng.js';
+import { drawDice } from './dice.js';
 import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES, TILE_TO_RESOURCE } from './gameRules.js';
 
 const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
@@ -17,21 +18,13 @@ function log(gameState, playerIndex, text) {
   return { ...gameState, log: [...gameState.log, { id: gameState.log.length, playerIndex, text }] };
 }
 
-// Draw two dice from the game's seeded generator. Returns [dice, rng].
-export function rollDice(rng) {
-  const [a, r1] = nextInt(rng, 6);
-  const [b, r2] = nextInt(r1, 6);
-  const die1 = a + 1, die2 = b + 1, total = die1 + die2;
-  return [{ die1, die2, total, isRobber: total === 7 }, r2];
-}
-
-// The whole roll as one state transition (so App's functional update stays
-// atomic against rapid clicks): roll, log, then collect or start the robber.
+// The whole roll as one state transition: draw from the game's dice mode,
+// log, then collect or start the robber.
 export function performRoll(gameState) {
   if (gameState.phase !== 'play' || gameState.dice !== null || gameState.winner !== null) return gameState;
-  const [result, rng] = rollDice(gameState.rng);
+  const [result, patch] = drawDice(gameState);
   const player = gameState.players[gameState.currentPlayerIndex];
-  let s = log({ ...gameState, dice: result, rng }, gameState.currentPlayerIndex,
+  let s = log({ ...gameState, ...patch, dice: result }, gameState.currentPlayerIndex,
     `${player.name} rolled ${result.die1} + ${result.die2} = ${result.total}`);
   if (result.isRobber) return startRobber(s);
   return collectResources(s, result.total);

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { applyAction } from '../game/engine'
 import { portRate } from '../game/gameActions'
+import { parseDiceScript, formatDiceQueue, DICE_LABELS } from '../game/dice'
 import { BOARD_WIDTH, BOARD_HEIGHT } from '../game/gameRules'
 import HexBoard from './HexBoard'
 import BoardViewport from './BoardViewport'
@@ -157,6 +158,23 @@ function PlayerTradePanel({ players, currentPlayerIndex, onOffer }) {
 
 function describeBundle(bundle) {
   return Object.entries(bundle).map(([r, n]) => `${n} ${r}`).join(' + ')
+}
+
+// Scripted dice: show and replace the queue of upcoming rolls mid-game.
+function ScriptedDice({ queue, onSet }) {
+  const [draft, setDraft] = useState(formatDiceQueue(queue))
+  const parsed = parseDiceScript(draft)
+  return (
+    <div className="g-side-section">
+      <strong>Scripted dice</strong>
+      <span className="g-dim">Next: {queue.length ? formatDiceQueue(queue) : 'random (queue empty)'}</span>
+      <label className="g-field">Rolls
+        <input type="text" value={draft} onChange={e => setDraft(e.target.value)} placeholder="e.g. 6 8 3+4" aria-label="Scripted rolls" />
+      </label>
+      {typeof parsed === 'string' && <ul className="g-errors"><li>{parsed}</li></ul>}
+      <button className="g-btn" disabled={typeof parsed === 'string'} onClick={() => onSet(parsed)}>Set queue</button>
+    </div>
+  )
 }
 
 function PlayerList({ players, currentPlayerIndex, largestArmy, longestRoad }) {
@@ -381,7 +399,7 @@ export default function GameScreen({ game, setGame, onHome }) {
       <header className="g-header">
         <button className="g-brand" onClick={onHome} title="Home">⬡ Catanalyst</button>
         <span className="g-turn" style={{ color: currentPlayer.colour }}>{currentPlayer.name}'s turn</span>
-        <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`}</span>
+        <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`} · {DICE_LABELS[gameState.diceMode].split(' (')[0]} dice</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
           <AudioControls />
@@ -419,6 +437,13 @@ export default function GameScreen({ game, setGame, onHome }) {
             largestArmy={gameState.largestArmy}
             longestRoad={gameState.longestRoad}
           />
+          {gameState.diceMode === 'scripted' && (
+            <ScriptedDice
+              key={formatDiceQueue(gameState.diceQueue)}
+              queue={gameState.diceQueue}
+              onSet={queue => act({ type: 'setDiceQueue', queue })}
+            />
+          )}
           <div className="g-tabs">
             <div className="g-tabbar">
               <button className={`g-tab${tab === 'log' ? ' g-tab-active' : ''}`} onClick={() => setTab('log')}>

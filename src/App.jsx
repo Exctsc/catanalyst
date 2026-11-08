@@ -23,13 +23,13 @@ export default function App() {
   const [screen, setScreen] = useState(linked.board ? 'editor' : 'home') // 'home' | 'editor' | 'game'
   const [game, setGame] = useState(null)
 
-  function startGame({ board }) {
-    setGame(newGame({ seed: randomSeed(), board }))
+  function startGame({ board, diceMode, diceQueue }) {
+    setGame(newGame({ seed: randomSeed(), board, diceMode, diceQueue }))
     setScreen('game')
   }
 
   if (screen === 'editor') {
-    return <BoardEditor initialBoard={linked.board ?? game?.state.board ?? randomBoard(true)} onStart={board => startGame({ board })} onHome={() => setScreen('home')} />
+    return <BoardEditor initialBoard={linked.board ?? game?.state.board ?? randomBoard(true)} onStart={startGame} onHome={() => setScreen('home')} />
   }
   if (screen === 'game' && game) {
     return <GameScreen game={game} setGame={setGame} onHome={() => setScreen('home')} />
@@ -37,7 +37,7 @@ export default function App() {
   return (
     <Home
       error={linked.error}
-      onNewGame={({ balanced }) => startGame({ board: randomBoard(balanced) })}
+      onNewGame={({ balanced, ...dice }) => startGame({ board: randomBoard(balanced), ...dice })}
       onEditor={() => setScreen('editor')}
     />
   )

@@ -13,7 +13,7 @@ const COLOURS = ['#E74C3C', '#3498DB', '#2ECC71', '#F39C12'];
 
 // A new game is a pure function of its options, so a saved game only needs
 // these options plus its action list to be rebuilt exactly.
-export function createGame({ seed = 1, board = DEFAULT_BOARD } = {}) {
+export function createGame({ seed = 1, board = DEFAULT_BOARD, diceMode = 'random', diceQueue = [] } = {}) {
   const [devCardDeck, rng] = shuffle(createRng(seed), DEV_DECK);
   return {
     players: COLOURS.map((colour, id) => ({
@@ -33,6 +33,11 @@ export function createGame({ seed = 1, board = DEFAULT_BOARD } = {}) {
       lastSettlementIndex: null,
     },
     dice: null,
+    // Dice mode (see dice.js): the balanced deck is dealt on first roll, the
+    // scripted queue is popped one entry per roll.
+    diceMode,
+    diceDeck: [],
+    diceQueue,
     // Board layout for this game: tiles (terrain per hex), numbers (token per
     // hex, null on the desert) and ports ({ type, vertices, x, y } per slot).
     board,

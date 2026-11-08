@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import DiceSetup from './DiceSetup'
+import { diceOptions } from '../game/dice'
 
 // Landing screen: start a game, open the board editor, or load one.
 export default function Home({ error, onNewGame, onEditor }) {
   const [balanced, setBalanced] = useState(true)
+  const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
+  const options = diceOptions(dice)
   return (
     <div className="g-app">
       <div className="g-home">
@@ -23,7 +27,10 @@ export default function Home({ error, onNewGame, onEditor }) {
                 <option value="random">Random</option>
               </select>
             </label>
-            <button className="g-btn g-btn-primary" onClick={() => onNewGame({ balanced })}>Start new game</button>
+            <DiceSetup value={dice} onChange={setDice} />
+            <button className="g-btn g-btn-primary" disabled={typeof options === 'string'} onClick={() => onNewGame({ balanced, ...options })}>
+              Start new game
+            </button>
           </section>
 
           <section className="g-side-section">
