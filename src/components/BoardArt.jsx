@@ -216,3 +216,47 @@ export function HourglassIcon() {
     </g>
   );
 }
+
+// --- harbours
+
+const PORT_BG = { brick: '#C1440E', wood: '#228B22', ore: '#8C8C8C', wheat: '#F4D03F', sheep: '#90EE90', generic: '#f3e6c4' };
+
+function Anchor() {
+  return (
+    <g fill="none" stroke="#2b3a4a" strokeWidth={2} strokeLinecap="round">
+      <circle cx={0} cy={-8} r={2.2} />
+      <line x1={0} y1={-5.8} x2={0} y2={7} />
+      <line x1={-4.5} y1={-3} x2={4.5} y2={-3} />
+      <path d="M-8,1 Q-7,7.5 0,7.5 Q7,7.5 8,1" />
+    </g>
+  );
+}
+
+// A wooden pier from the harbour to one of the coastal corners it serves.
+export function Pier({ x1, y1, x2, y2 }) {
+  return (
+    <g pointerEvents="none" strokeLinecap="round">
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#5b3a1e" strokeWidth={5.5} />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#b9854c" strokeWidth={3.2} />
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#5b3a1e" strokeWidth={3.2} strokeDasharray="0.8 5" />
+    </g>
+  );
+}
+
+// A harbour medallion: the resource's picture (or an anchor for 3:1) over its rate.
+export function PortArt({ x, y, type, selected = false }) {
+  const generic = type === 'generic';
+  return (
+    <g transform={`translate(${x},${y}) scale(1.25)`}>
+      <circle r={19} fill="#000" opacity={0.25} cy={1.5} />
+      <circle r={18} fill={PORT_BG[type]} stroke={selected ? '#fff' : '#f7f1e1'} strokeWidth={selected ? 4 : 2.5} />
+      <g transform="translate(0,-4)">
+        {generic ? <g transform="scale(0.85)"><Anchor /></g> : <TerrainArt terrain={RESOURCE_TERRAIN[type]} x={0} y={0} scale={0.6} />}
+      </g>
+      <rect x={-12} y={5.5} width={24} height={11} rx={5.5} fill="#fbf6e8" stroke="#5b3a1e" strokeWidth={0.8} />
+      <text y={11.2} textAnchor="middle" dominantBaseline="central" fontSize={9.5} fontWeight={700} fill="#3b2a18">
+        {generic ? '3:1' : '2:1'}
+      </text>
+    </g>
+  );
+}

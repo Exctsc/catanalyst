@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   EDGES, VERTICES, HEX_CENTERS, HEX_TO_VERTICES, BOARD_WIDTH, BOARD_HEIGHT, BOARD_MIN_X, BOARD_MIN_Y,
 } from '../game/gameRules.js';
-import { TerrainArt, SeaAndBeach, Settlement, City, Robber } from './BoardArt.jsx';
+import { TerrainArt, SeaAndBeach, Settlement, City, Robber, PortArt, Pier } from './BoardArt.jsx';
 
 const RESOURCE_COLORS = {
   hills:     '#C1440E',
@@ -12,19 +12,6 @@ const RESOURCE_COLORS = {
   pasture:   '#90EE90',
   desert:    '#DEB887',
 };
-
-// Port visual styling keyed by type (port data lives in gameState.board.ports)
-const PORT_STYLE = {
-  generic: { fill: '#E0E0E0', text: '#444' },
-  brick:   { fill: '#C1440E', text: 'white' },
-  wood:    { fill: '#228B22', text: 'white' },
-  ore:     { fill: '#8C8C8C', text: 'white' },
-  wheat:   { fill: '#F4D03F', text: '#333' },
-  sheep:   { fill: '#90EE90', text: '#333' },
-};
-function portLabel(type) {
-  return type === 'generic' ? '3:1' : `2:1 ${type[0].toUpperCase()}${type.slice(1)}`;
-}
 
 // HEX_TO_VERTICES lists each hex's corners in angle order, so they trace the
 // polygon; `scale` shrinks or grows it about the hex centre (bevel, beach).
@@ -76,36 +63,14 @@ function Token({ cx, cy, number }) {
 }
 
 function Port({ port, selected, onClick }) {
-  const { fill, text } = PORT_STYLE[port.type];
-  const label = portLabel(port.type);
-  const w = label.length * 7.6 + 12;
-  const h = 21;
-  const [va, vb] = port.vertices;
-  const A = VERTICES[va];
-  const B = VERTICES[vb];
+  const [A, B] = port.vertices.map(v => VERTICES[v]);
+  const name = port.type === 'generic' ? '3:1 harbour (any resource)' : `2:1 ${port.type} harbour`;
   return (
-    <g onClick={onClick} style={onClick ? { cursor: 'pointer' } : undefined}>
-      {/* dock lines connecting the harbour to the two coastal intersections it serves */}
-      <line x1={port.x} y1={port.y} x2={A.x} y2={A.y} stroke="rgba(150,110,60,0.65)" strokeWidth={2.5} strokeDasharray="3 3" />
-      <line x1={port.x} y1={port.y} x2={B.x} y2={B.y} stroke="rgba(150,110,60,0.65)" strokeWidth={2.5} strokeDasharray="3 3" />
-      <rect
-        x={port.x - w / 2} y={port.y - h / 2}
-        width={w} height={h}
-        rx={4}
-        fill={fill}
-        stroke={selected ? '#fff' : 'rgba(0,0,0,0.35)'}
-        strokeWidth={selected ? 3 : 1}
-      />
-      <text
-        x={port.x} y={port.y}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={12}
-        fontWeight="bold"
-        fill={text}
-      >
-        {label}
-      </text>
+    <g onClick={onClick} style={onClick ? { cursor: 'pointer' } : undefined} data-port={port.type}>
+      <title>{name}</title>
+      <Pier x1={port.x} y1={port.y} x2={A.x} y2={A.y} />
+      <Pier x1={port.x} y1={port.y} x2={B.x} y2={B.y} />
+      <PortArt x={port.x} y={port.y} type={port.type} selected={selected} />
     </g>
   );
 }
@@ -196,7 +161,7 @@ export default function HexBoard({ board, underlay = null, hexOpacity = 1, pipLa
       width={VB_W}
       height={VB_H}
       viewBox={`${VB_MIN_X} ${VB_MIN_Y} ${VB_W} ${VB_H}`}
-      style={{ display: 'block' }}
+      style={{ display: 'block', overflow: 'visible' }}
     >
       {hexOpacity === 1 && <SeaAndBeach hexes={hexes} hexPoints={hexPoints} />}
       {/* Board editor tracing: a screenshot drawn under the hexes, in board units. */}

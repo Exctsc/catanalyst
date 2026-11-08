@@ -33,7 +33,7 @@ src/
     GameScreen.jsx           the play screen + sandbox panel, replay panel, analysis tab, trade UI
     HexBoard.jsx             SVG board; renders only from gameRules geometry + gameState.board
     BoardViewport.jsx        zoom/pan frame around the board (CSS transform)
-    BoardArt.jsx             hand-drawn SVG art: terrain icons, sea + beach, settlement, city, robber
+    BoardArt.jsx             hand-drawn SVG art: terrain icons, beach, pieces, robber, harbours, bar icons
   game/                      pure, no React — all tested in Node
     gameRules.js             geometry: vertices, hexes, edges, adjacency, port slots, board extents, standard counts, DEFAULT_BOARD
     gameState.js             createGame(options) → initial state; default export is a fixed-seed game for tests
@@ -176,7 +176,9 @@ dropdowns.
   files or licences. The whole board area is sea (the frame's background) with a sand beach around the island; each tile has a soft bevel and
   an illustration above its token (pines, sheep, wheat, bricks, snowy peaks; a cactus fills the
   desert); settlements are houses, cities a tall house with a hall, the robber a pawn standing
-  in the illustration's place; roads get a highlight. Art, sea and tokens hide while tracing a
+  in the illustration's place; roads get a highlight; harbours are round medallions showing the
+  resource's picture (an anchor for 3:1) over the rate, joined to their two corners by wooden piers
+  (the SVG allows overflow so medallions on far coastal edges are not clipped). Art, sea and tokens hide while tracing a
   screenshot so the image shows through. All art ignores the pointer, so click targets are
   unchanged.
 - Home screen with the two-sentence pitch, new game options, saved games, editor, import.
