@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { applyAction } from '../game/engine'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { applyAction, replay, turnStarts, branchGame } from '../game/engine'
 import { portRate } from '../game/gameActions'
 import { parseDiceScript, formatDiceQueue, DICE_LABELS } from '../game/dice'
 import { BOARD_WIDTH, BOARD_HEIGHT } from '../game/gameRules'
@@ -236,6 +236,32 @@ function SandboxPanel({ state, sandbox, setSandbox, onEdit, onDone }) {
   )
 }
 
+// Replay controls: step through every recorded action, jump to a turn, or
+// branch a new game from the position on screen.
+function ReplayPanel({ at, total, starts, onSeek, onBranch, onExit }) {
+  const currentTurn = [...starts].reverse().find(t => t.index <= at)
+  return (
+    <div className="g-side-section">
+      <strong>Replay</strong>
+      <span className="g-dim">Action {at} of {total}</span>
+      <div className="g-row">
+        <button className="g-btn" onClick={() => onSeek(0)} disabled={at === 0} aria-label="First action">⏮</button>
+        <button className="g-btn" onClick={() => onSeek(at - 1)} disabled={at === 0} aria-label="Step back">◀</button>
+        <button className="g-btn" onClick={() => onSeek(at + 1)} disabled={at === total} aria-label="Step forward">▶</button>
+        <button className="g-btn" onClick={() => onSeek(total)} disabled={at === total} aria-label="Last action">⏭</button>
+      </div>
+      <input type="range" min={0} max={total} value={at} onChange={e => onSeek(+e.target.value)} aria-label="Replay position" />
+      <label className="g-field">Jump to
+        <select value={currentTurn?.index ?? 0} onChange={e => onSeek(+e.target.value)}>
+          {starts.map(t => <option key={t.turn} value={t.index}>{t.turn === 0 ? 'Setup' : `Turn ${t.turn}`}</option>)}
+        </select>
+      </label>
+      <button className="g-btn g-btn-primary" onClick={onBranch}>Play from here (new branch)</button>
+      <button className="g-btn" onClick={onExit}>Back to live game</button>
+    </div>
+  )
+}
+
 function describeBundle(bundle) {
   return Object.entries(bundle).map(([r, n]) => `${n} ${r}`).join(' + ')
 }
@@ -333,9 +359,17 @@ function GameLog({ log, players }) {
 
 // The play screen. `game` is the engine record { options, actions, state };
 // every change is handed back through setGame.
-export default function GameScreen({ game, setGame, onHome }) {
-  const gameState = game.state
+export default function GameScreen({ game, setGame, onHome, onBranch }) {
   const [sandbox, setSandbox] = useState(null) // null | { player, tool }
+  const [replayAt, setReplayAt] = useState(null) // null = live, else action index on screen
+  const replaying = replayAt !== null
+  const replayStates = useMemo(
+    () => (replaying ? replay(game.options, game.actions).states : null),
+    [replaying, game.options, game.actions],
+  )
+  const replayStarts = useMemo(() => (replayStates ? turnStarts(replayStates) : []), [replayStates])
+  // While replaying, everything below renders the historical position read-only.
+  const gameState = replaying ? replayStates[replayAt] : game.state
   const [message, setMessage] = useState(null)
   const [tradeGive, setTradeGive] = useState('brick')
   const [tradeReceive, setTradeReceive] = useState('wood')
@@ -471,7 +505,10 @@ export default function GameScreen({ game, setGame, onHome }) {
   // Header status chip: reflects robber/discard/road-building state or the setup prompt.
   let status = null
   let statusAlert = false
-  if (sandbox) {
+  if (replaying) {
+    status = `Replay: action ${replayAt} of ${game.actions.length}`
+    statusAlert = true
+  } else if (sandbox) {
     status = 'Sandbox: editing position'
     statusAlert = true
   } else if (robber?.stage === 'discard') {
@@ -499,7 +536,8 @@ export default function GameScreen({ game, setGame, onHome }) {
   const canBuyDev = !isSetup && !robber && !roadBuilding && winner === null
   const canTradeOrBuild = !isSetup && !preRoll
   const canPlayDev = gameState.phase === 'play' && !gameState.devCardPlayedThisTurn && !robber && !roadBuilding && winner === null
-  const showActions = !robber && !winner && !roadBuilding && !sandbox
+  const showActions = !robber && !winner && !roadBuilding && !sandbox && !replaying
+  const interactive = !replaying
 
   return (
     <div className="g-app">
@@ -509,10 +547,15 @@ export default function GameScreen({ game, setGame, onHome }) {
         <span className="g-phase">· {isSetup ? 'Setup' : `Turn ${gameState.turn}`} · {DICE_LABELS[gameState.diceMode].split(' (')[0]} dice</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`}>{status}</span>}
-          {!sandbox && (
-            <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
-              Edit position
-            </button>
+          {!sandbox && !replaying && (
+            <>
+              <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
+                Replay
+              </button>
+              <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildOpen(false); setDevPanel(null) }}>
+                Edit position
+              </button>
+            </>
           )}
           <AudioControls />
         </div>
@@ -528,12 +571,12 @@ export default function GameScreen({ game, setGame, onHome }) {
               roads={roadPlacements}
               cities={cityPlacements}
               robberHex={gameState.robberHex}
-              onIntersectionClick={handleIntersectionClick}
-              onEdgeClick={handleEdgeClick}
-              onHexClick={(sandbox ? sandbox.tool === 'robber' : robber?.stage === 'move') ? handleHexClick : undefined}
+              onIntersectionClick={interactive ? handleIntersectionClick : undefined}
+              onEdgeClick={interactive ? handleEdgeClick : undefined}
+              onHexClick={interactive && (sandbox ? sandbox.tool === 'robber' : robber?.stage === 'move') ? handleHexClick : undefined}
             />
           </BoardViewport>
-          {winner && !sandbox && (
+          {winner && !sandbox && !replaying && (
             <div className="g-winner">
               <div className="g-winner-card" style={{ background: winner.colour }}>
                 🏆 {winner.name} wins!
@@ -549,6 +592,21 @@ export default function GameScreen({ game, setGame, onHome }) {
             largestArmy={gameState.largestArmy}
             longestRoad={gameState.longestRoad}
           />
+          {replaying && (
+            <ReplayPanel
+              at={replayAt}
+              total={game.actions.length}
+              starts={replayStarts}
+              onSeek={i => setReplayAt(Math.max(0, Math.min(game.actions.length, i)))}
+              onBranch={() => {
+                const branch = branchGame(game, replayAt)
+                if (typeof branch === 'string') { setMessage(branch); return }
+                setReplayAt(null)
+                onBranch(branch, replayStates[replayAt])
+              }}
+              onExit={() => setReplayAt(null)}
+            />
+          )}
           {sandbox && (
             <SandboxPanel
               key={`${sandbox.player}:${game.actions.length}`}
@@ -559,7 +617,7 @@ export default function GameScreen({ game, setGame, onHome }) {
               onDone={finishSandbox}
             />
           )}
-          {gameState.diceMode === 'scripted' && !sandbox && (
+          {gameState.diceMode === 'scripted' && !sandbox && !replaying && (
             <ScriptedDice
               key={formatDiceQueue(gameState.diceQueue)}
               queue={gameState.diceQueue}
@@ -588,7 +646,7 @@ export default function GameScreen({ game, setGame, onHome }) {
           ))}
         </div>
 
-        {!isSetup && !sandbox && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
+        {!isSetup && !sandbox && !replaying && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
 
         <div className="g-actions">
           {gameState.dice && (
@@ -598,7 +656,7 @@ export default function GameScreen({ game, setGame, onHome }) {
             </span>
           )}
 
-          {robber?.stage === 'discard' && (
+          {robber?.stage === 'discard' && interactive && (
             <DiscardPanel
               key={robber.pending[0]}
               player={gameState.players[robber.pending[0]]}
@@ -607,7 +665,7 @@ export default function GameScreen({ game, setGame, onHome }) {
             />
           )}
 
-          {robber?.stage === 'steal' && (
+          {robber?.stage === 'steal' && interactive && (
             <div className="g-modal-row">
               <strong>Steal 1 card from:</strong>
               {robber.candidates.map(i => (
@@ -623,7 +681,7 @@ export default function GameScreen({ game, setGame, onHome }) {
             </div>
           )}
 
-          {roadBuilding && (
+          {roadBuilding && interactive && (
             <div className="g-modal-row">
               <strong style={{ color: currentPlayer.colour }}>
                 Place {roadBuilding.remaining} free road{roadBuilding.remaining > 1 ? 's' : ''}
@@ -658,7 +716,7 @@ export default function GameScreen({ game, setGame, onHome }) {
             </div>
           )}
 
-          {offer && (
+          {offer && interactive && (
             <div className="g-modal-row">
               <span>
                 <strong style={{ color: gameState.players[offer.from].colour }}>{gameState.players[offer.from].name}</strong>

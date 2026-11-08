@@ -3,7 +3,7 @@ import DiceSetup from './DiceSetup'
 import { diceOptions } from '../game/dice'
 
 // Landing screen: start a game, open the board editor, or load one.
-export default function Home({ error, onNewGame, onEditor }) {
+export default function Home({ error, games = [], onResume, onNewGame, onEditor }) {
   const [balanced, setBalanced] = useState(true)
   const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
   const options = diceOptions(dice)
@@ -32,6 +32,21 @@ export default function Home({ error, onNewGame, onEditor }) {
               Start new game
             </button>
           </section>
+
+          {games.length > 0 && (
+            <section className="g-side-section">
+              <strong>Your games</strong>
+              {games.map(({ id, name, game }) => (
+                <div key={id} className="g-row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>
+                    {name}
+                    <span className="g-dim"> · {game.state.winner !== null ? `${game.state.players[game.state.winner].name} won` : game.state.phase === 'setup' ? 'setup' : `turn ${game.state.turn}`}</span>
+                  </span>
+                  <button className="g-btn" onClick={() => onResume(id)}>Resume</button>
+                </div>
+              ))}
+            </section>
+          )}
 
           <section className="g-side-section">
             <strong>Board editor</strong>

@@ -65,3 +65,22 @@ export function applyAction(game, action) {
 export function newGame(options) {
   return { options, actions: [], state: createGame(options) };
 }
+
+// Index of the first state of each play-phase turn, for "jump to turn".
+// Setup is listed as turn 0 at index 0.
+export function turnStarts(states) {
+  const starts = [{ turn: 0, index: 0 }];
+  states.forEach((s, i) => {
+    if (s.phase === 'play' && !starts.some(t => t.turn === s.turn)) starts.push({ turn: s.turn, index: i });
+  });
+  return starts;
+}
+
+// A new game that shares the first `index` actions with `game` and continues
+// from there. The original record is not touched.
+export function branchGame(game, index) {
+  const actions = game.actions.slice(0, index);
+  const { states, error } = replay(game.options, actions);
+  if (error) return error;
+  return { options: game.options, actions, state: states.at(-1) };
+}
