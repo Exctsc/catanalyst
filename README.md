@@ -84,7 +84,7 @@ publishes `dist`, and rewrites every path to the app so board links work.
   steals, the dev deck shuffle, random boards) comes from a counter-based seeded PRNG whose
   seed and position live in game state. A game is just `{ options, actions }`, which is what
   makes replay, branching, autosave and export cheap and exact.
-- **Tests**: 30 Node suites (`tests/*.test.mjs`, about 600 assertions). These include a
+- **Tests**: 29 Node suites (`tests/*.test.mjs`, about 600 assertions). These include a
   scripted bot that plays complete games, which must replay to a deep-equal state.
 - The SVG board sits inside a CSS-transformed viewport, so hit-testing stays exact at
   any zoom.
