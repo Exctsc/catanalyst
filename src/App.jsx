@@ -104,6 +104,10 @@ export default function App() {
       games={games}
       onImport={handleImport}
       onResume={id => { setCurrentId(id); setScreen('game') }}
+      onDelete={id => {
+        setGames(list => list.filter(g => g.id !== id))
+        if (id === currentId) setCurrentId(null)
+      }}
       onNewGame={({ balanced, ...dice }) => startGame({ board: randomBoard(balanced), ...dice })}
       onEditor={() => setScreen('editor')}
     />

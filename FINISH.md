@@ -58,7 +58,7 @@ Then the features:
 
 ## Phase 3: Ship it
 
-- [ ] **Home screen**: New Game (random or balanced board, dice mode), Board Editor, Load / Import, plus a two-sentence explanation of who Catanalyst is for.
+- [x] **Home screen**: New Game (random or balanced board, dice mode), Board Editor, Load / Import, plus a two-sentence explanation of who Catanalyst is for.
 - [ ] **README.md** replaced with a real product README: what it is, who it's for, the problem (casual platforms have no training tools), feature list with a screenshot or GIF path placeholder, how to run locally, tech overview, and a "What I cut and why" section (online multiplayer, AI) with a `<!-- TONY: personal intro here -->` marker for Tony's own words.
 - [ ] **Netlify config**: `netlify.toml` with `npm run build`, publish `dist`, and an SPA redirect so `?board=` links work. `npm run build && npm run preview` serves a working app.
 - [ ] **Final verification in a real browser** (desktop app preview or Chrome): play a full game from setup to a win on a balanced board with Balanced dice; edit a board, share its code, reload from the link; set up a sandbox position; export, import and replay a game, then branch from mid-game. Use clicks that move a few pixels, not zero-travel synthetic clicks (see the pointer-capture lesson in `CATANALYST_PROGRESS.md`). No console errors.

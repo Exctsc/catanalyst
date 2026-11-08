@@ -3,7 +3,7 @@ import DiceSetup from './DiceSetup'
 import { diceOptions } from '../game/dice'
 
 // Landing screen: start a game, open the board editor, or load one.
-export default function Home({ error, games = [], onResume, onImport, onNewGame, onEditor }) {
+export default function Home({ error, games = [], onResume, onDelete, onImport, onNewGame, onEditor }) {
   const [balanced, setBalanced] = useState(true)
   const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
   const options = diceOptions(dice)
@@ -42,7 +42,10 @@ export default function Home({ error, games = [], onResume, onImport, onNewGame,
                     {name}
                     <span className="g-dim"> · {game.state.winner !== null ? `${game.state.players[game.state.winner].name} won` : game.state.phase === 'setup' ? 'setup' : `turn ${game.state.turn}`}</span>
                   </span>
-                  <button className="g-btn" onClick={() => onResume(id)}>Resume</button>
+                  <span className="g-row">
+                    <button className="g-btn" onClick={() => onResume(id)}>Resume</button>
+                    <button className="g-btn" onClick={() => onDelete(id)} aria-label={`Delete ${name}`}>Delete</button>
+                  </span>
                 </div>
               ))}
             </section>
