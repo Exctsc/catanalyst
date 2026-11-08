@@ -1,3 +1,4 @@
+import { nextInt } from './rng.js';
 import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES, TILE_TO_RESOURCE } from './gameRules.js';
 
 const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
@@ -16,20 +17,21 @@ function log(gameState, playerIndex, text) {
   return { ...gameState, log: [...gameState.log, { id: gameState.log.length, playerIndex, text }] };
 }
 
-export function rollDice() {
-  const die1 = Math.ceil(Math.random() * 6);
-  const die2 = Math.ceil(Math.random() * 6);
-  const total = die1 + die2;
-  return { die1, die2, total, isRobber: total === 7 };
+// Draw two dice from the game's seeded generator. Returns [dice, rng].
+export function rollDice(rng) {
+  const [a, r1] = nextInt(rng, 6);
+  const [b, r2] = nextInt(r1, 6);
+  const die1 = a + 1, die2 = b + 1, total = die1 + die2;
+  return [{ die1, die2, total, isRobber: total === 7 }, r2];
 }
 
 // The whole roll as one state transition (so App's functional update stays
 // atomic against rapid clicks): roll, log, then collect or start the robber.
 export function performRoll(gameState) {
   if (gameState.phase !== 'play' || gameState.dice !== null || gameState.winner !== null) return gameState;
-  const result = rollDice();
+  const [result, rng] = rollDice(gameState.rng);
   const player = gameState.players[gameState.currentPlayerIndex];
-  let s = log({ ...gameState, dice: result }, gameState.currentPlayerIndex,
+  let s = log({ ...gameState, dice: result, rng }, gameState.currentPlayerIndex,
     `${player.name} rolled ${result.die1} + ${result.die2} = ${result.total}`);
   if (result.isRobber) return startRobber(s);
   return collectResources(s, result.total);
@@ -406,6 +408,16 @@ function touchesNetwork(gameState, playerIndex, edgeIndex) {
   });
 }
 
+// Give up any remaining Road Building free roads (forgiving simplification,
+// see known issue #12) so a player is never soft-locked.
+export function skipRoadBuilding(gameState, playerIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (!gameState.roadBuilding) return 'No free roads to skip';
+  return log({ ...gameState, roadBuilding: null }, playerIndex,
+    `${gameState.players[playerIndex].name} skipped the remaining free roads`);
+}
+
 // A road is legal if the edge is free and touches the player's network.
 function isLegalRoad(gameState, playerIndex, edgeIndex) {
   if (gameState.players.some(p => p.roads.some(r => r.edgeIndex === edgeIndex))) return false;
@@ -688,7 +700,8 @@ export function stealResource(gameState, playerIndex, victimIndex) {
 
   const victim = gameState.players[victimIndex];
   const deck = RESOURCE_TYPES.flatMap(r => Array(victim.resources[r]).fill(r));
-  const stolen = deck[Math.floor(Math.random() * deck.length)];
+  const [pick, rng] = nextInt(gameState.rng, deck.length);
+  const stolen = deck[pick];
 
   const players = gameState.players.map((p, idx) => {
     if (idx === victimIndex)
@@ -698,7 +711,7 @@ export function stealResource(gameState, playerIndex, victimIndex) {
     return p;
   });
 
-  return log({ ...gameState, players, robber: null }, playerIndex,
+  return log({ ...gameState, players, robber: null, rng }, playerIndex,
     `${gameState.players[playerIndex].name} stole a card from ${victim.name}`);
 }
 

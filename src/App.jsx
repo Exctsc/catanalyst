@@ -1,11 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
-import initialGameState from './game/gameState'
-import {
-  performRoll, endTurn, placeSettlement, placeRoad, upgradeToCity,
-  bankTrade, discardCards, moveRobber, stealResource,
-  buyDevCard, playKnight, playRoadBuilding, playYearOfPlenty, playMonopoly,
-  portRate, proposeTrade, acceptTrade, declineTrade,
-} from './game/gameActions'
+import { newGame, applyAction } from './game/engine'
+import { randomSeed } from './game/rng'
+import { portRate } from './game/gameActions'
 import { BOARD_WIDTH, BOARD_HEIGHT } from './game/gameRules'
 import HexBoard from './components/HexBoard'
 import BoardViewport from './components/BoardViewport'
@@ -240,7 +236,8 @@ function GameLog({ log, players }) {
 }
 
 export default function App() {
-  const [gameState, setGameState] = useState(initialGameState)
+  const [game, setGame] = useState(() => newGame({ seed: randomSeed() }))
+  const gameState = game.state
   const [message, setMessage] = useState(null)
   const [tradeGive, setTradeGive] = useState('brick')
   const [tradeReceive, setTradeReceive] = useState('wood')
@@ -271,76 +268,75 @@ export default function App() {
     player.cities.map(c => ({ intersectionIndex: c.intersectionIndex, colour: player.colour }))
   )
 
-  // Runs a pure action, then either shows its error string as a transient toast
-  // or commits the returned state. Returns whether it succeeded.
-  function apply(result) {
-    if (typeof result === 'string') { setMessage(result); return false }
-    setGameState(result)
+  // Every change goes through the engine as a recorded action. An error string
+  // becomes a transient toast. Returns whether the action applied.
+  function act(action) {
+    const next = applyAction(game, action)
+    if (typeof next === 'string') { setMessage(next); return false }
+    setGame(next)
     setMessage(null)
     return true
   }
+  const me = gameState.currentPlayerIndex
 
   function handleRoll() {
-    setMessage(null)
-    setGameState(prev => performRoll(prev))
+    act({ type: 'roll' })
   }
 
   function handleIntersectionClick(intersectionIndex) {
     const ownSettlement = currentPlayer.settlements.some(s => s.intersectionIndex === intersectionIndex)
-    apply(gameState.phase !== 'setup' && ownSettlement
-      ? upgradeToCity(gameState, gameState.currentPlayerIndex, intersectionIndex)
-      : placeSettlement(gameState, gameState.currentPlayerIndex, intersectionIndex))
+    act({ type: gameState.phase !== 'setup' && ownSettlement ? 'upgradeToCity' : 'placeSettlement', player: me, vertex: intersectionIndex })
   }
 
   function handleEdgeClick(edgeIndex) {
-    apply(placeRoad(gameState, gameState.currentPlayerIndex, edgeIndex))
+    act({ type: 'placeRoad', player: me, edge: edgeIndex })
   }
 
   // The one cue not derived from the state diff: a bank trade only shuffles
   // cards between a hand and the bank, which is indistinguishable from paying
   // a build cost, so it's announced from the handler that knows what happened.
   function handleBankTrade() {
-    if (apply(bankTrade(gameState, gameState.currentPlayerIndex, tradeGive, tradeReceive))) playSound('trade')
+    if (act({ type: 'bankTrade', player: me, give: tradeGive, receive: tradeReceive })) playSound('trade')
   }
 
   function handleOffer(to, give, get) {
-    apply(proposeTrade(gameState, gameState.currentPlayerIndex, to, give, get))
+    act({ type: 'proposeTrade', player: me, to, give, get })
   }
 
   // Player trades only move cards between hands, like a bank trade, so the
   // cue is played here rather than derived from the state diff.
   function handleAcceptTrade() {
-    if (apply(acceptTrade(gameState, gameState.tradeOffer.to))) { playSound('trade'); setTradeOpen(false) }
+    if (act({ type: 'acceptTrade', player: gameState.tradeOffer.to })) { playSound('trade'); setTradeOpen(false) }
   }
 
   function handleDiscard(playerIndex, counts) {
-    apply(discardCards(gameState, playerIndex, counts))
+    act({ type: 'discard', player: playerIndex, cards: counts })
   }
 
   function handleHexClick(hexIndex) {
-    apply(moveRobber(gameState, gameState.currentPlayerIndex, hexIndex))
+    act({ type: 'moveRobber', player: me, hex: hexIndex })
   }
 
   function handleSteal(victimIndex) {
-    apply(stealResource(gameState, gameState.currentPlayerIndex, victimIndex))
+    act({ type: 'steal', player: me, victim: victimIndex })
   }
 
   function handleBuyDev() {
-    apply(buyDevCard(gameState, gameState.currentPlayerIndex))
+    act({ type: 'buyDevCard', player: me })
   }
 
   function handlePlayDev(type) {
-    if (type === 'knight') { apply(playKnight(gameState, gameState.currentPlayerIndex)); return }
-    if (type === 'roadBuilding') { apply(playRoadBuilding(gameState, gameState.currentPlayerIndex)); return }
+    if (type === 'knight') { act({ type: 'playKnight', player: me }); return }
+    if (type === 'roadBuilding') { act({ type: 'playRoadBuilding', player: me }); return }
     setDevPanel(type) // yearOfPlenty / monopoly need a resource choice first
   }
 
   function handlePlayYearOfPlenty() {
-    if (apply(playYearOfPlenty(gameState, gameState.currentPlayerIndex, [yopA, yopB]))) setDevPanel(null)
+    if (act({ type: 'playYearOfPlenty', player: me, picks: [yopA, yopB] })) setDevPanel(null)
   }
 
   function handlePlayMonopoly() {
-    if (apply(playMonopoly(gameState, gameState.currentPlayerIndex, monoPick))) setDevPanel(null)
+    if (act({ type: 'playMonopoly', player: me, resource: monoPick })) setDevPanel(null)
   }
 
   function handleEndTurn() {
@@ -348,7 +344,7 @@ export default function App() {
     setTradeOpen(false)
     setBuildOpen(false)
     setDevPanel(null)
-    setGameState(prev => endTurn(prev))
+    act({ type: 'endTurn' })
   }
 
   // Header status chip: reflects robber/discard/road-building state or the setup prompt.
@@ -487,7 +483,7 @@ export default function App() {
                 Place {roadBuilding.remaining} free road{roadBuilding.remaining > 1 ? 's' : ''}
               </strong>
               <span style={{ color: 'var(--g-text-dim)' }}>— click a road slot on the board</span>
-              <button className="g-btn" onClick={() => setGameState(prev => ({ ...prev, roadBuilding: null }))}>Skip</button>
+              <button className="g-btn" onClick={() => act({ type: 'skipRoadBuilding', player: me })}>Skip</button>
             </div>
           )}
 
@@ -527,8 +523,8 @@ export default function App() {
               <button className="g-btn g-btn-primary" onClick={handleAcceptTrade}>
                 {gameState.players[offer.to].name}: Accept
               </button>
-              <button className="g-btn" onClick={() => apply(declineTrade(gameState, offer.to))}>Decline</button>
-              <button className="g-btn" onClick={() => apply(declineTrade(gameState, offer.from))}>Withdraw</button>
+              <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.to })}>Decline</button>
+              <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.from })}>Withdraw</button>
             </div>
           )}
 

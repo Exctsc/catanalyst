@@ -39,7 +39,7 @@ Real-time online multiplayer is deliberately out of scope (Colonist already does
 
 Architecture first, because replay depends on it:
 
-- [ ] **Deterministic, action-sourced engine.** Every state change goes through one `dispatch(state, action)` reducer over the existing pure action functions. All randomness (dice, steals, dev deck shuffle, random board) comes from a seeded PRNG whose seed and position live in game state. Replaying the same initial state + action list reproduces the identical game. A test plays a full scripted game twice and asserts the states are deep-equal.
+- [x] **Deterministic, action-sourced engine.** Every state change goes through one `dispatch(state, action)` reducer over the existing pure action functions. All randomness (dice, steals, dev deck shuffle, random board) comes from a seeded PRNG whose seed and position live in game state. Replaying the same initial state + action list reproduces the identical game. A test plays a full scripted game twice and asserts the states are deep-equal.
 
 Then the features:
 
