@@ -2,6 +2,10 @@ import { VERTEX_TO_HEXES, VERTEX_ADJACENCY, EDGES, HEX_TO_VERTICES, TILE_TO_RESO
 
 const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
 
+// Pieces each player owns. Upgrading to a city returns the settlement piece,
+// which falls out naturally: the settlement leaves player.settlements.
+export const PIECE_LIMITS = { settlements: 5, cities: 4, roads: 15 };
+
 // Single shared log helper — every action appends human-readable entries
 // through this; playerIndex colours the entry in the UI (null = system line).
 function log(gameState, playerIndex, text) {
@@ -231,6 +235,8 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
   if (gameState.robber) return 'Resolve the robber first';
   // In play phase, no manual building before the dice are rolled.
   if (gameState.phase === 'play' && gameState.dice === null) return 'Roll the dice first';
+  if (gameState.players[playerIndex].settlements.length >= PIECE_LIMITS.settlements)
+    return `No settlements left (${PIECE_LIMITS.settlements} max) — upgrade one to a city`;
   if (isOccupied(gameState, intersectionIndex)) return 'Intersection already occupied';
   if (VERTEX_ADJACENCY[intersectionIndex].some(adj => isOccupied(gameState, adj)))
     return 'Too close to another settlement';
@@ -304,6 +310,8 @@ export function placeRoad(gameState, playerIndex, edgeIndex) {
     return 'Roll the dice first';
   if (edgeIndex < 0 || edgeIndex >= EDGES.length) return 'Invalid edge';
 
+  if (gameState.players[playerIndex].roads.length >= PIECE_LIMITS.roads)
+    return `No roads left (${PIECE_LIMITS.roads} max)`;
   const edgeTaken = gameState.players.some(p => p.roads.some(r => r.edgeIndex === edgeIndex));
   if (edgeTaken) return 'Edge already has a road';
 
@@ -396,6 +404,7 @@ function isLegalRoad(gameState, playerIndex, edgeIndex) {
 }
 
 function hasLegalRoad(gameState, playerIndex) {
+  if (gameState.players[playerIndex].roads.length >= PIECE_LIMITS.roads) return false;
   for (let ei = 0; ei < EDGES.length; ei++) if (isLegalRoad(gameState, playerIndex, ei)) return true;
   return false;
 }
@@ -410,6 +419,7 @@ export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
   const player = gameState.players[playerIndex];
   if (!player.settlements.some(s => s.intersectionIndex === intersectionIndex))
     return 'You need a settlement here to build a city';
+  if (player.cities.length >= PIECE_LIMITS.cities) return `No cities left (${PIECE_LIMITS.cities} max)`;
 
   if (player.resources.wheat < 2 || player.resources.ore < 3)
     return 'Insufficient resources';

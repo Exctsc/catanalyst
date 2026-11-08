@@ -55,10 +55,11 @@ check('10th point placement accepted', typeof won !== 'string');
 check('winner declared at 10 VP', won.winner === 0);
 check('winning player has 10 VP', won.players[0].victoryPoints === 10);
 
-// City upgrade can also win: 8 VP + settlement upgrade (1 -> 2) = 10
+// City upgrade can also win: 3 cities + 3 settlements = 9 VP, upgrade (1 -> 2) = 10.
+// (4 cities is the supply cap, so the winning upgrade must be the 4th city.)
 const cityWin = upgradeToCity(playState({
-  cities: occupied.slice(0, 4).map(v => ({ intersectionIndex: v })),
-  settlements: [{ intersectionIndex: occupied[4] }],
+  cities: occupied.slice(0, 3).map(v => ({ intersectionIndex: v })),
+  settlements: occupied.slice(3, 6).map(v => ({ intersectionIndex: v })),
   victoryPoints: 9,
   resources: { brick: 0, wood: 0, ore: 3, wheat: 2, sheep: 0 },
 }), 0, occupied[4]);

@@ -30,7 +30,7 @@ Real-time online multiplayer is deliberately out of scope (Colonist already does
 - [x] **Single source of board data.** Board layout (tile resources, number tokens, port types and positions) lives in game state, not module constants. Remove the duplicated `TILES`/`NUMBERS` and the duplicated vertex traversal (known bugs #1 and #2): `HexBoard.jsx` renders from `gameRules.js` geometry and from `gameState.board`. All existing tests still pass after updating fixtures.
 - [x] **Road blocking** (known bug #3): a road cannot extend from a vertex occupied by an opponent's settlement or city. Tests cover the blocked and own-building cases.
 - [x] **Settlement connectivity** (known bug #6): outside setup, a settlement must touch one of the player's roads. Tested.
-- [ ] **Building supply limits**: 5 settlements, 4 cities, 15 roads per player; upgrading a city returns the settlement piece. Clear error strings. Tested.
+- [x] **Building supply limits**: 5 settlements, 4 cities, 15 roads per player; upgrading a city returns the settlement piece. Clear error strings. Tested.
 - [ ] **Player index validation** (known bug #5) on every action. Tested.
 - [ ] **Turn counter** increments correctly (one full rotation of players = one round; display "Turn N"). Tested.
 - [ ] **Player-to-player trading (hotseat)**: current player builds an offer (give / get, any counts) to one opponent; the opponent accepts or declines on the same screen. Validates both hands, only after rolling, logged. Tested.
