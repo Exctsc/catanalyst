@@ -6,6 +6,10 @@ const RESOURCE_TYPES = ['brick', 'wood', 'ore', 'wheat', 'sheep'];
 // which falls out naturally: the settlement leaves player.settlements.
 export const PIECE_LIMITS = { settlements: 5, cities: 4, roads: 15 };
 
+function isValidPlayer(gameState, playerIndex) {
+  return Number.isInteger(playerIndex) && playerIndex >= 0 && playerIndex < gameState.players.length;
+}
+
 // Single shared log helper — every action appends human-readable entries
 // through this; playerIndex colours the entry in the UI (null = system line).
 function log(gameState, playerIndex, text) {
@@ -230,6 +234,8 @@ function isOccupied(gameState, intersectionIndex) {
 }
 
 export function placeSettlement(gameState, playerIndex, intersectionIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
+  if (!(intersectionIndex >= 0 && intersectionIndex < VERTEX_ADJACENCY.length)) return 'Invalid intersection';
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
@@ -301,6 +307,7 @@ export function placeSettlement(gameState, playerIndex, intersectionIndex) {
 }
 
 export function placeRoad(gameState, playerIndex, edgeIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
@@ -410,6 +417,8 @@ function hasLegalRoad(gameState, playerIndex) {
 }
 
 export function upgradeToCity(gameState, playerIndex, intersectionIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
+  if (!(intersectionIndex >= 0 && intersectionIndex < VERTEX_ADJACENCY.length)) return 'Invalid intersection';
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
@@ -460,6 +469,7 @@ export function portRate(gameState, playerIndex, resource) {
 }
 
 export function bankTrade(gameState, playerIndex, give, receive) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.robber) return 'Resolve the robber first';
@@ -523,6 +533,7 @@ export function startRobber(gameState) {
 
 // discards is { resource: count }; total must equal the player's required count
 export function discardCards(gameState, playerIndex, discards) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   const robber = gameState.robber;
   if (!robber || robber.stage !== 'discard') return 'No discard is pending';
   if (!robber.pending.includes(playerIndex)) return 'You have nothing to discard';
@@ -569,6 +580,7 @@ function stealCandidates(gameState, playerIndex, hexIndex) {
 }
 
 export function moveRobber(gameState, playerIndex, hexIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (!gameState.robber || gameState.robber.stage !== 'move') return 'The robber cannot move right now';
   if (hexIndex < 0 || hexIndex >= HEX_TO_VERTICES.length) return 'Invalid hex';
@@ -586,6 +598,7 @@ export function moveRobber(gameState, playerIndex, hexIndex) {
 }
 
 export function stealResource(gameState, playerIndex, victimIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (!gameState.robber || gameState.robber.stage !== 'steal') return 'No steal is pending';
   if (!gameState.robber.candidates.includes(victimIndex)) return 'You cannot steal from that player';
@@ -618,6 +631,7 @@ const DEV_CARD_LABEL = {
 // Buy the top card of the draw pile for 1 ore + 1 wheat + 1 sheep. Multiple
 // purchases per turn are allowed. The card enters the hand as newlyBought.
 export function buyDevCard(gameState, playerIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   if (gameState.winner !== null) return 'Game is over';
   if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
   if (gameState.phase === 'setup') return 'Cannot buy dev cards during setup';
@@ -670,6 +684,7 @@ function removeOneCard(devCards, type) {
 // Knight: increment the knight count, recompute Largest Army, then hand off to
 // the existing robber move/steal flow — but with no discard step.
 export function playKnight(gameState, playerIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   const err = canPlayDevCard(gameState, playerIndex, 'knight');
   if (err) return err;
 
@@ -695,6 +710,7 @@ export function playKnight(gameState, playerIndex) {
 
 // Road Building: place up to 2 free roads following normal placement rules.
 export function playRoadBuilding(gameState, playerIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   const err = canPlayDevCard(gameState, playerIndex, 'roadBuilding');
   if (err) return err;
 
@@ -712,6 +728,7 @@ export function playRoadBuilding(gameState, playerIndex) {
 
 // Year of Plenty: take any 2 resources from the bank for free (capped by stock).
 export function playYearOfPlenty(gameState, playerIndex, picks) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   const err = canPlayDevCard(gameState, playerIndex, 'yearOfPlenty');
   if (err) return err;
   if (!Array.isArray(picks) || picks.length !== 2) return 'Pick exactly 2 resources';
@@ -735,6 +752,7 @@ export function playYearOfPlenty(gameState, playerIndex, picks) {
 
 // Monopoly: every other player hands over all cards of the named resource.
 export function playMonopoly(gameState, playerIndex, resource) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
   const err = canPlayDevCard(gameState, playerIndex, 'monopoly');
   if (err) return err;
   if (!RESOURCE_TYPES.includes(resource)) return 'Unknown resource';
