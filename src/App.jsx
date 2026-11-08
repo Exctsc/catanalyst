@@ -192,46 +192,6 @@ function GameLog({ log, players }) {
   )
 }
 
-function Chat({ messages, onSend, currentPlayer }) {
-  const [draft, setDraft] = useState('')
-  const ref = useRef(null)
-  useEffect(() => {
-    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
-  }, [messages.length])
-
-  function send() {
-    const text = draft.trim()
-    if (!text) return
-    onSend(text)
-    setDraft('')
-  }
-
-  return (
-    <div className="g-chat">
-      <div className="g-chat-messages" ref={ref}>
-        {messages.length === 0 ? (
-          <div className="g-chat-empty">No messages yet. Chat is local-only until multiplayer lands.</div>
-        ) : (
-          messages.map((m, i) => (
-            <div key={i} className="g-chat-msg">
-              <span className="g-chat-author" style={{ color: m.colour }}>{m.author}:</span> {m.text}
-            </div>
-          ))
-        )}
-      </div>
-      <div className="g-chat-input">
-        <input
-          value={draft}
-          placeholder={`Message as ${currentPlayer.name}…`}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') send() }}
-        />
-        <button className="g-btn" onClick={send}>Send</button>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   const [gameState, setGameState] = useState(initialGameState)
   const [message, setMessage] = useState(null)
@@ -244,7 +204,6 @@ export default function App() {
   const [yopA, setYopA] = useState('brick')
   const [yopB, setYopB] = useState('wood')
   const [monoPick, setMonoPick] = useState('brick')
-  const [chatMessages, setChatMessages] = useState([])
 
   useGameSounds(gameState)
 
@@ -334,13 +293,6 @@ export default function App() {
     setGameState(prev => endTurn(prev))
   }
 
-  // TODO: wire to Socket.io once multiplayer backend exists.
-  // Local-only placeholder: messages are appended to component state and never
-  // leave the browser. No network, no persistence, no other clients.
-  function handleSendChat(text) {
-    setChatMessages(prev => [...prev, { author: currentPlayer.name, colour: currentPlayer.colour, text }])
-  }
-
   // Header status chip: reflects robber/discard/road-building state or the setup prompt.
   let status = null
   let statusAlert = false
@@ -418,13 +370,8 @@ export default function App() {
               <button className={`g-tab${tab === 'log' ? ' g-tab-active' : ''}`} onClick={() => setTab('log')}>
                 Game Log
               </button>
-              <button className={`g-tab${tab === 'chat' ? ' g-tab-active' : ''}`} onClick={() => setTab('chat')}>
-                Chat
-              </button>
             </div>
-            {tab === 'log'
-              ? <GameLog log={gameState.log} players={gameState.players} />
-              : <Chat messages={chatMessages} onSend={handleSendChat} currentPlayer={currentPlayer} />}
+            {tab === 'log' && <GameLog log={gameState.log} players={gameState.players} />}
           </div>
         </aside>
       </div>
