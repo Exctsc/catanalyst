@@ -92,14 +92,10 @@ export function TerrainArt({ terrain, x, y, scale = 1 }) {
   return Icon ? <g transform={`translate(${x},${y}) scale(${scale})`} pointerEvents="none"><Icon /></g> : null;
 }
 
-// Sea around the island and a sand beach under the land hexes.
+// A sand beach under the land hexes; the sea is the board frame's background.
 export function SeaAndBeach({ hexes, hexPoints }) {
   return (
     <g pointerEvents="none">
-      <polygon
-        points="-300,150 -150,-110 150,-110 300,150 150,410 -150,410"
-        fill="#2f6fa6" stroke="#2f6fa6" strokeWidth={40} strokeLinejoin="round"
-      />
       {hexes.map((_, i) => (
         <polygon key={i} points={hexPoints(i, 1.14)} fill="#e6cf98" stroke="#e6cf98" strokeWidth={4} strokeLinejoin="round" />
       ))}

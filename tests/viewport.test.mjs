@@ -169,7 +169,7 @@ check('a small pinch delta still moves the zoom meaningfully', zoomFactorFromWhe
 check('the factor is always positive, so zoom never flips sign', [-1e4, -50, 0, 50, 1e4].every(d => zoomFactorFromWheel(d, false) > 0));
 
 // --- fitZoom ---------------------------------------------------------------
-check('fitZoom never magnifies past 1:1 in a large frame', fitZoom({ w: 4000, h: 3000 }, CONTENT) === 1);
+check('fitZoom fills a large frame, up to MAX_ZOOM', fitZoom({ w: 4000, h: 3000 }, CONTENT) === MAX_ZOOM && Math.abs(fitZoom({ w: 1200, h: 900 }, CONTENT) - Math.min(1200 / CONTENT.w, 900 / CONTENT.h)) < 1e-9);
 check('fitZoom shrinks to fit a small frame', (() => {
   const z = fitZoom({ w: 300, h: 640 }, CONTENT);
   return near(z, 300 / CONTENT.w) && z < 1;
@@ -181,7 +181,7 @@ check('fitZoom uses the tighter of the two axes', (() => {
 })());
 check('fitZoom respects MIN_ZOOM in an extremely small frame', fitZoom({ w: 10, h: 10 }, CONTENT) === MIN_ZOOM);
 check('fitZoom falls back to 1 before the frame is measured', fitZoom({ w: 0, h: 0 }, CONTENT) === DEFAULT_VIEW.zoom);
-check('the real board fits a default desktop centre at 1:1', fitZoom(VIEWPORT, CONTENT) === 1);
+check('the real board fills a default desktop centre (bigger than 1:1)', fitZoom(VIEWPORT, CONTENT) === Math.min(VIEWPORT.w / CONTENT.w, VIEWPORT.h / CONTENT.h) && fitZoom(VIEWPORT, CONTENT) > 1);
 
 // --- geometry helpers (pinch tracking) ------------------------------------
 check('distance measures pinch spread', distance({ x: 0, y: 0 }, { x: 3, y: 4 }) === 5);

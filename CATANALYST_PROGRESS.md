@@ -161,7 +161,7 @@ none).
 
 **Shell**
 - **Board art** (added after the run, at Tony's request): drawn in SVG in `BoardArt.jsx`, no image
-  files or licences. The island sits on a sea with a sand beach; each tile has a soft bevel and
+  files or licences. The whole board area is sea (the frame's background) with a sand beach around the island; each tile has a soft bevel and
   an illustration above its token (pines, sheep, wheat, bricks, snowy peaks; a cactus fills the
   desert); settlements are houses, cities a tall house with a hall, the robber a pawn standing
   in the illustration's place; roads get a highlight. Art, sea and tokens hide while tracing a
@@ -169,7 +169,9 @@ none).
   unchanged.
 - Home screen with the two-sentence pitch, new game options, saved games, editor, import.
 - Zoom and pan: wheel / trackpad pinch / touch pinch, 0.5×–3×, pan limits keep 120px on screen,
-  +/−/reset buttons. Drag vs click threshold 12px; pointer capture is taken only once a drag is
+  − / zoom % / + / Fit buttons. The board opens fitted to the frame (it magnifies in a big
+  window; it used to stop at 100%), and a one-time hint in the corner says how to zoom and pan,
+  dismissed by its × or by the first zoom/pan and remembered in `localStorage`. Drag vs click threshold 12px; pointer capture is taken only once a drag is
   confirmed (see the lesson below).
 - Synthesized sound cues (no audio files) with mute + volume persisted in `localStorage`.
 - Action log in the sidebar, coloured by player.
@@ -274,6 +276,7 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 - **Analysis numbers**: pip totals are structural (the robber is ignored), while "expected cards per roll" skips the robbed hex and ignores bank shortages. Income is attributed by the action that caused each hand change; spending on builds, cards given in trades and sandbox edits are not counted.
 - **Native `<select>` dropdowns** were driven with the browser tool's form input during verification (the preview pane cannot drive a native select popup with clicks or keys). Board clicks always used real pointer travel.
 
+- **The board opens fitted to its frame** (magnifying past 100% in a big window), at Tony's request; `fitZoom`'s old "never past 1:1" test was changed with the rule.
 - **Board art was hand-drawn rather than taken from a free pack** so there is nothing to license or bundle; a CC0 set (e.g. Kenney) could replace `BoardArt.jsx` later.
 - **Fonts were enlarged after the run at Tony's request** (CSS sizes ~15% up, Home larger still), an explicit exception to "no restyling".
 - **Screenshot number reading** trusts the token's structure (pips, digit count, loops, red ink) rather than recognising digit shapes, so it works across token styles without OCR; desert hexes are always left without a number.

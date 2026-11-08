@@ -53,10 +53,11 @@ have had analysis boards for decades. Catan players have screenshots.
   expected cards per roll, a histogram of rolled totals against the 2d6 expectation,
   and an income breakdown (rolls, setup, trades, dev cards, steals; losses to the robber,
   discards and Monopoly).
-- Hand-drawn board art (SVG, no image files): an island on a blue sea with a sand beach,
+- Hand-drawn board art (SVG, no image files): an island with a sand beach on a sea that fills the board area,
   bevelled tiles with an illustration per terrain (pines, sheep, wheat, bricks, peaks, cactus),
   houses for settlements, a house-and-hall for cities, and a pawn for the robber.
-- Zoom and pan (wheel, trackpad pinch, touch), synthesized sound effects with a mute
+- Zoom and pan (wheel, trackpad pinch, touch, or the − / + / Fit buttons), the board opening
+  fitted to the window, synthesized sound effects with a mute
   toggle, and an action log.
 
 ## Run it locally

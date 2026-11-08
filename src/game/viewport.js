@@ -86,12 +86,11 @@ export function zoomFactorFromWheel(deltaY, ctrlKey) {
   return Math.exp(-deltaY * sensitivity);
 }
 
-// Zoom that fits the whole board in the frame, never magnifying past 1:1.
-// Used for the initial view and the "reset view" button, so a small window
-// still shows the entire board the way it did before zooming existed.
+// Zoom that fits the whole board in the frame, magnifying in a big window
+// and shrinking in a small one. Used for the initial view and the Fit button.
 export function fitZoom(viewport, content) {
   if (!viewport.w || !viewport.h || !content.w || !content.h) return DEFAULT_VIEW.zoom;
-  return clampZoom(Math.min(1, viewport.w / content.w, viewport.h / content.h));
+  return clampZoom(Math.min(viewport.w / content.w, viewport.h / content.h));
 }
 
 // How far a press has to travel before it counts as a pan rather than a click.

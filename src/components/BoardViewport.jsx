@@ -8,6 +8,12 @@ import {
 // Zoom applied per click of the +/- buttons.
 const BUTTON_STEP = 1.25;
 
+// The "scroll or pinch to zoom" hint shows until someone zooms or pans once.
+const HINT_KEY = 'catanalyst.zoomHintSeen';
+function hintSeen() {
+  try { return window.localStorage.getItem(HINT_KEY) === '1'; } catch { return false; }
+}
+
 /**
  * Pan/zoom frame for the board.
  *
@@ -24,6 +30,11 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
   const frameRef = useRef(null);
   const [view, setView] = useState(() => ({ zoom: 1, x: 0, y: 0 }));
   const [grabbing, setGrabbing] = useState(false);
+  const [showHint, setShowHint] = useState(() => !hintSeen());
+  const dismissHint = useCallback(() => {
+    setShowHint(false);
+    try { window.localStorage.setItem(HINT_KEY, '1'); } catch { /* storage unavailable */ }
+  }, []);
 
   // Live frame/content sizes kept in refs so the pointer and wheel handlers can
   // read them without re-subscribing on every render.
@@ -86,11 +97,12 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
       // ctrlKey is how macOS reports a trackpad pinch as a wheel event.
       const factor = zoomFactorFromWheel(event.deltaY, event.ctrlKey);
       setView(v => zoomAt(v, v.zoom * factor, point, sizeRef.current, contentRef.current));
+      dismissHint();
     }
 
     frame.addEventListener('wheel', onWheel, { passive: false });
     return () => frame.removeEventListener('wheel', onWheel);
-  }, []);
+  }, [dismissHint]);
 
   // Swallow the click that ends a drag, before it reaches the board, so panning
   // across an intersection never places a settlement.
@@ -175,6 +187,7 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
         pinchRef.current.distance = spread;
         const centre = midpoint(a, b);
         setView(v => zoomAt(v, v.zoom * (spread / previous), centre, sizeRef.current, contentRef.current));
+        dismissHint();
       }
       return;
     }
@@ -190,6 +203,7 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
       drag.moved = true;
       capturePointer(event);
       setGrabbing(true);
+      dismissHint();
     }
     suppressClickRef.current = true;
     setView(v => ({
@@ -228,7 +242,8 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
       { x: sizeRef.current.w / 2, y: sizeRef.current.h / 2 }, // anchor on centre
       sizeRef.current, contentRef.current,
     ));
-  }, []);
+    dismissHint();
+  }, [dismissHint]);
 
   return (
     <div className="g-board-wrap">
@@ -252,9 +267,25 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
         </div>
       </div>
 
-      {/* Discoverable fallback for anyone who doesn't try scrolling or pinching. */}
+      {showHint && (
+        <div className="g-board-hint" role="note">
+          <span>Scroll or pinch to zoom, drag to move the board, or use the buttons below.</span>
+          <button className="g-board-hint-close" onClick={dismissHint} aria-label="Dismiss hint">×</button>
+        </div>
+      )}
+
+      {/* Zoom buttons for anyone who doesn't scroll or pinch. */}
       <div className="g-board-controls">
-        <span className="g-zoom-level">{Math.round(view.zoom * 100)}%</span>
+        <button
+          className="g-zoom-btn"
+          onClick={() => zoomByButton(1 / BUTTON_STEP)}
+          disabled={view.zoom <= MIN_ZOOM}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+        <span className="g-zoom-level" title="Zoom level">{Math.round(view.zoom * 100)}%</span>
         <button
           className="g-zoom-btn"
           onClick={() => zoomByButton(BUTTON_STEP)}
@@ -265,21 +296,12 @@ export default function BoardViewport({ contentWidth, contentHeight, children })
           +
         </button>
         <button
-          className="g-zoom-btn"
-          onClick={() => zoomByButton(1 / BUTTON_STEP)}
-          disabled={view.zoom <= MIN_ZOOM}
-          title="Zoom out"
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-        <button
-          className="g-zoom-btn"
+          className="g-zoom-btn g-zoom-fit"
           onClick={() => setView(fitView())}
-          title="Reset view"
-          aria-label="Reset view"
+          title="Fit the whole board"
+          aria-label="Fit the whole board"
         >
-          ⤾
+          Fit
         </button>
       </div>
     </div>
