@@ -341,3 +341,4 @@ Regression coverage: `turnlock` drives all 8 setup placements with `dice === nul
 ## Assumptions (finish run, 2026-11-08)
 
 - **Turn counter = round number.** `turn` starts at 1 when play begins and advances each time play wraps back to Player 1; setup is not counted (the header shows "Setup" instead). The log marks each new round with `Turn N — …`.
+- **Player trades** must have at least one card on each side (no gifts) and may not list the same resource on both sides. The offer is a pending `tradeOffer` in state; the recipient accepts or declines, the offerer can withdraw, both hands are re-checked at accept time, and End Turn clears any pending offer.

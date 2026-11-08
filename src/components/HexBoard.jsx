@@ -127,6 +127,7 @@ function RoadSlot({ edgeIndex, onEdgeClick }) {
   const { x1, y1, x2, y2 } = edgeEndpoints(edgeIndex, 0.62);
   return (
     <g
+      data-edge={edgeIndex}
       onClick={() => onEdgeClick(edgeIndex)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -206,6 +207,7 @@ export default function HexBoard({ board, placements = [], roads = [], cities = 
       {hexes.map(({ x, y, resource, number }, i) => (
         <g
           key={i}
+          data-hex={i}
           onClick={onHexClick ? () => onHexClick(i) : undefined}
           style={onHexClick ? { cursor: 'pointer' } : undefined}
         >
@@ -261,6 +263,7 @@ export default function HexBoard({ board, placements = [], roads = [], cities = 
       {onIntersectionClick && VERTICES.map(({ x, y }, i) => (
         <circle
           key={`hit-${i}`}
+          data-vertex={i}
           cx={x} cy={y}
           r={HIT_RADIUS}
           fill="transparent"

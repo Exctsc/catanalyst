@@ -4,7 +4,7 @@ import {
   performRoll, endTurn, placeSettlement, placeRoad, upgradeToCity,
   bankTrade, discardCards, moveRobber, stealResource,
   buyDevCard, playKnight, playRoadBuilding, playYearOfPlenty, playMonopoly,
-  portRate,
+  portRate, proposeTrade, acceptTrade, declineTrade,
 } from './game/gameActions'
 import { BOARD_WIDTH, BOARD_HEIGHT } from './game/gameRules'
 import HexBoard from './components/HexBoard'
@@ -118,6 +118,53 @@ function DiscardPanel({ player, required, onConfirm }) {
   )
 }
 
+const EMPTY_HAND = { brick: 0, wood: 0, ore: 0, wheat: 0, sheep: 0 }
+
+// Five small number inputs, one per resource, capped at `max[r]` when given.
+function CountInputs({ counts, max, onChange }) {
+  return RESOURCES.map(r => (
+    <label key={r}>
+      <ResourceChip resource={r} size={14} />
+      <input
+        type="number"
+        min={0}
+        max={max ? max[r] : undefined}
+        value={counts[r]}
+        aria-label={r}
+        onChange={e => {
+          const n = Math.max(0, Math.floor(+e.target.value || 0))
+          onChange({ ...counts, [r]: max ? Math.min(max[r], n) : n })
+        }}
+      />
+    </label>
+  ))
+}
+
+// Hotseat trade builder: the current player offers cards to one opponent.
+function PlayerTradePanel({ players, currentPlayerIndex, onOffer }) {
+  const opponents = players.map((_, i) => i).filter(i => i !== currentPlayerIndex)
+  const [to, setTo] = useState(opponents[0])
+  const [give, setGive] = useState(EMPTY_HAND)
+  const [get, setGet] = useState(EMPTY_HAND)
+  return (
+    <div className="g-modal-row">
+      <span>Offer</span>
+      <select value={to} onChange={e => setTo(+e.target.value)} aria-label="Trade partner">
+        {opponents.map(i => <option key={i} value={i}>{players[i].name}</option>)}
+      </select>
+      <strong>give</strong>
+      <CountInputs counts={give} max={players[currentPlayerIndex].resources} onChange={setGive} />
+      <strong>get</strong>
+      <CountInputs counts={get} onChange={setGet} />
+      <button className="g-btn g-btn-primary" onClick={() => onOffer(to, give, get)}>Offer</button>
+    </div>
+  )
+}
+
+function describeBundle(bundle) {
+  return Object.entries(bundle).map(([r, n]) => `${n} ${r}`).join(' + ')
+}
+
 function PlayerList({ players, currentPlayerIndex, largestArmy, longestRoad }) {
   return (
     <div className="g-players">
@@ -211,6 +258,7 @@ export default function App() {
   const isSetup = gameState.phase === 'setup'
   const robber = gameState.robber
   const roadBuilding = gameState.roadBuilding
+  const offer = gameState.tradeOffer
   const winner = gameState.winner !== null ? gameState.players[gameState.winner] : null
 
   const placements = gameState.players.flatMap(player =>
@@ -253,6 +301,16 @@ export default function App() {
   // a build cost, so it's announced from the handler that knows what happened.
   function handleBankTrade() {
     if (apply(bankTrade(gameState, gameState.currentPlayerIndex, tradeGive, tradeReceive))) playSound('trade')
+  }
+
+  function handleOffer(to, give, get) {
+    apply(proposeTrade(gameState, gameState.currentPlayerIndex, to, give, get))
+  }
+
+  // Player trades only move cards between hands, like a bank trade, so the
+  // cue is played here rather than derived from the state diff.
+  function handleAcceptTrade() {
+    if (apply(acceptTrade(gameState, gameState.tradeOffer.to))) { playSound('trade'); setTradeOpen(false) }
   }
 
   function handleDiscard(playerIndex, counts) {
@@ -458,8 +516,34 @@ export default function App() {
             </div>
           )}
 
+          {offer && (
+            <div className="g-modal-row">
+              <span>
+                <strong style={{ color: gameState.players[offer.from].colour }}>{gameState.players[offer.from].name}</strong>
+                {' offers '}
+                <strong style={{ color: gameState.players[offer.to].colour }}>{gameState.players[offer.to].name}</strong>
+                {`: ${describeBundle(offer.give)} for ${describeBundle(offer.get)}`}
+              </span>
+              <button className="g-btn g-btn-primary" onClick={handleAcceptTrade}>
+                {gameState.players[offer.to].name}: Accept
+              </button>
+              <button className="g-btn" onClick={() => apply(declineTrade(gameState, offer.to))}>Decline</button>
+              <button className="g-btn" onClick={() => apply(declineTrade(gameState, offer.from))}>Withdraw</button>
+            </div>
+          )}
+
+          {tradeOpen && showActions && !preRoll && !offer && (
+            <PlayerTradePanel
+              key={gameState.currentPlayerIndex}
+              players={gameState.players}
+              currentPlayerIndex={gameState.currentPlayerIndex}
+              onOffer={handleOffer}
+            />
+          )}
+
           {tradeOpen && showActions && !preRoll && (
             <div className="g-popover">
+              <strong>Bank</strong>
               <span>Give {portRate(gameState, gameState.currentPlayerIndex, tradeGive)}</span>
               <select value={tradeGive} onChange={e => setTradeGive(e.target.value)}>
                 {RESOURCES.map(r => (

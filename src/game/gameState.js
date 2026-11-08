@@ -52,6 +52,8 @@ const initialGameState = {
   devCardPlayedThisTurn: false,
   // Non-null while resolving a played Road Building card: { remaining: 1|2 }.
   roadBuilding: null,
+  // Pending player-to-player offer: { from, to, give: {res: n}, get: {res: n} }.
+  tradeOffer: null,
   // Holder player index (or null). longestRoad needs a 5+ chain, largestArmy 3+ knights.
   longestRoad: null,
   largestArmy: null,

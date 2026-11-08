@@ -49,7 +49,7 @@ export function endTurn(gameState) {
   const turn = next === 0 ? gameState.turn + 1 : gameState.turn;
   return log({
     ...gameState, players, currentPlayerIndex: next, dice: null, turn,
-    devCardPlayedThisTurn: false, roadBuilding: null,
+    devCardPlayedThisTurn: false, roadBuilding: null, tradeOffer: null,
   }, next, next === 0 ? `Turn ${turn} — ${gameState.players[next].name}'s turn` : `${gameState.players[next].name}'s turn`);
 }
 
@@ -500,6 +500,87 @@ export function bankTrade(gameState, playerIndex, give, receive) {
 
   return log({ ...gameState, players, bank }, playerIndex,
     `${gameState.players[playerIndex].name} traded ${rate} ${give} for 1 ${receive} with the bank`);
+}
+
+// ---------------------------------------------------------------------------
+// Player-to-player trading (hotseat): the current player offers cards to one
+// opponent, who accepts or declines on the same screen.
+// ---------------------------------------------------------------------------
+
+// Normalise { resource: count } to positive integer counts; error string if malformed.
+function cleanBundle(bundle) {
+  if (!bundle || typeof bundle !== 'object') return 'Malformed trade';
+  const out = {};
+  for (const [r, n] of Object.entries(bundle)) {
+    if (!RESOURCE_TYPES.includes(r)) return 'Unknown resource';
+    if (!Number.isInteger(n) || n < 0) return 'Counts must be whole numbers';
+    if (n > 0) out[r] = n;
+  }
+  return out;
+}
+
+function holds(player, bundle) {
+  return Object.entries(bundle).every(([r, n]) => player.resources[r] >= n);
+}
+
+function describe(bundle) {
+  return Object.entries(bundle).map(([r, n]) => `${n} ${r}`).join(', ');
+}
+
+export function proposeTrade(gameState, playerIndex, toIndex, give, get) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
+  if (!isValidPlayer(gameState, toIndex)) return 'Invalid trade partner';
+  if (gameState.winner !== null) return 'Game is over';
+  if (gameState.currentPlayerIndex !== playerIndex) return 'Not your turn';
+  if (gameState.phase !== 'play') return 'Cannot trade during setup';
+  if (gameState.robber) return 'Resolve the robber first';
+  if (gameState.roadBuilding) return 'Finish placing your free roads first';
+  if (gameState.dice === null) return 'Roll the dice first';
+  if (toIndex === playerIndex) return 'Pick another player to trade with';
+  const g = cleanBundle(give);
+  if (typeof g === 'string') return g;
+  const w = cleanBundle(get);
+  if (typeof w === 'string') return w;
+  if (!Object.keys(g).length || !Object.keys(w).length) return 'Both sides of a trade need at least one card';
+  if (Object.keys(g).some(r => r in w)) return 'Cannot trade a resource for itself';
+  if (!holds(gameState.players[playerIndex], g)) return 'You do not have those cards';
+  if (!holds(gameState.players[toIndex], w)) return `${gameState.players[toIndex].name} does not have those cards`;
+
+  return log({ ...gameState, tradeOffer: { from: playerIndex, to: toIndex, give: g, get: w } }, playerIndex,
+    `${gameState.players[playerIndex].name} offers ${gameState.players[toIndex].name} ${describe(g)} for ${describe(w)}`);
+}
+
+export function acceptTrade(gameState, playerIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
+  const offer = gameState.tradeOffer;
+  if (!offer) return 'No trade is pending';
+  if (offer.to !== playerIndex) return 'Only the player receiving the offer can accept it';
+  // Hands may have changed since the offer was made; check both again.
+  if (!holds(gameState.players[offer.from], offer.give)) return `${gameState.players[offer.from].name} no longer has those cards`;
+  if (!holds(gameState.players[offer.to], offer.get)) return `${gameState.players[offer.to].name} does not have those cards`;
+
+  const players = gameState.players.map((p, i) => {
+    if (i !== offer.from && i !== offer.to) return p;
+    const [out, inn] = i === offer.from ? [offer.give, offer.get] : [offer.get, offer.give];
+    const resources = { ...p.resources };
+    Object.entries(out).forEach(([r, n]) => { resources[r] -= n; });
+    Object.entries(inn).forEach(([r, n]) => { resources[r] += n; });
+    return { ...p, resources };
+  });
+  return log({ ...gameState, players, tradeOffer: null }, playerIndex,
+    `${gameState.players[offer.to].name} accepted: ${describe(offer.give)} for ${describe(offer.get)} with ${gameState.players[offer.from].name}`);
+}
+
+// Either side can call it off: the recipient declines, the offerer withdraws.
+export function declineTrade(gameState, playerIndex) {
+  if (!isValidPlayer(gameState, playerIndex)) return 'Invalid player';
+  const offer = gameState.tradeOffer;
+  if (!offer) return 'No trade is pending';
+  if (playerIndex !== offer.to && playerIndex !== offer.from) return 'Not part of this trade';
+  const text = playerIndex === offer.to
+    ? `${gameState.players[offer.to].name} declined the trade`
+    : `${gameState.players[offer.from].name} withdrew the trade offer`;
+  return log({ ...gameState, tradeOffer: null }, playerIndex, text);
 }
 
 function totalCards(player) {
