@@ -2,6 +2,9 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { applyAction, replay, turnStarts, branchGame } from '../game/engine'
 import { portRate } from '../game/gameActions'
 import { parseDiceScript, formatDiceQueue, DICE_LABELS } from '../game/dice'
+import {
+  openIntersectionPips, playerPips, expectedPerRoll, rollHistogram, incomeBreakdown, GAIN_KEYS, LOSS_KEYS,
+} from '../game/analysis'
 import { BOARD_WIDTH, BOARD_HEIGHT } from '../game/gameRules'
 import HexBoard from './HexBoard'
 import BoardViewport from './BoardViewport'
@@ -262,6 +265,109 @@ function ReplayPanel({ at, total, starts, onSeek, onBranch, onExit }) {
   )
 }
 
+const INCOME_LABEL = {
+  rolls: 'Rolls', setup: 'Setup', trades: 'Trades', devCards: 'Dev cards', stolen: 'Stolen',
+  robber: 'Robbed', discards: 'Discards', monopoly: 'Monopoly',
+}
+
+// Per-player numbers by resource, one row per player.
+function ResourceTable({ players, rows, format = n => n }) {
+  return (
+    <table className="g-table">
+      <thead>
+        <tr><th />{RESOURCES.map(r => <th key={r} title={r}><ResourceChip resource={r} size={12} /></th>)}<th>Σ</th></tr>
+      </thead>
+      <tbody>
+        {players.map((p, i) => (
+          <tr key={p.id}>
+            <th style={{ borderLeft: `3px solid ${p.colour}` }}>{p.name.replace('Player ', 'P')}</th>
+            {RESOURCES.map(r => <td key={r}>{format(rows[i][r])}</td>)}
+            <td>{format(RESOURCES.reduce((sum, r) => sum + rows[i][r], 0))}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+// Rolled totals as bars, the 2d6 expectation as a tick on each bar.
+function RollHistogram({ bins }) {
+  const W = 280, H = 120, pad = 18, slot = (W - pad) / bins.length
+  const max = Math.max(1, ...bins.map(b => Math.max(b.actual, b.expected)))
+  const y = v => H - pad - (v / max) * (H - pad - 6)
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Rolled totals against the 2d6 expectation">
+      <line x1={pad} x2={W} y1={H - pad} y2={H - pad} stroke="var(--g-border)" strokeWidth={1} />
+      {bins.map((b, i) => {
+        const x = pad + i * slot + 1, w = slot - 2
+        return (
+          <g key={b.total}>
+            <title>{`${b.total}: rolled ${b.actual}, expected ${b.expected.toFixed(1)}`}</title>
+            <rect x={x} y={0} width={w} height={H} fill="transparent" />
+            {b.actual > 0 && <path d={`M${x},${H - pad} V${y(b.actual) + 4} q0,-4 4,-4 h${w - 8} q4,0 4,4 V${H - pad} Z`} fill="var(--g-accent-2)" />}
+            <line x1={x} x2={x + w} y1={y(b.expected)} y2={y(b.expected)} stroke="var(--g-text)" strokeWidth={2} />
+            <text x={x + w / 2} y={H - 5} textAnchor="middle" fontSize={9} fill="var(--g-text-dim)">{b.total}</text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function AnalysisPanel({ state, history, showPips, onTogglePips }) {
+  const bins = rollHistogram(history.states, history.actions)
+  const rolls = bins.reduce((n, b) => n + b.actual, 0)
+  const income = incomeBreakdown(history.states, history.actions)
+  return (
+    <div className="g-analysis">
+      <div className="g-side-section">
+        <label className="g-field">
+          <input type="checkbox" checked={showPips} onChange={e => onTogglePips(e.target.checked)} />
+          Show pips on open intersections
+        </label>
+        <strong>Pips per resource</strong>
+        <ResourceTable players={state.players} rows={playerPips(state)} />
+      </div>
+      <div className="g-side-section">
+        <strong>Expected cards per roll</strong>
+        <ResourceTable players={state.players} rows={expectedPerRoll(state)} format={n => n.toFixed(2)} />
+      </div>
+      <div className="g-side-section">
+        <strong>Rolls: actual vs 2d6 ({rolls} rolls)</strong>
+        <div className="g-legend">
+          <span><i className="g-legend-bar" /> rolled</span>
+          <span><i className="g-legend-tick" /> expected</span>
+        </div>
+        <RollHistogram bins={bins} />
+        <table className="g-table">
+          <tbody>
+            <tr><th>Total</th>{bins.map(b => <td key={b.total}>{b.total}</td>)}</tr>
+            <tr><th>Rolled</th>{bins.map(b => <td key={b.total}>{b.actual}</td>)}</tr>
+            <tr><th>Exp.</th>{bins.map(b => <td key={b.total}>{b.expected.toFixed(1)}</td>)}</tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="g-side-section">
+        <strong>Income (cards)</strong>
+        <table className="g-table">
+          <thead>
+            <tr><th />{GAIN_KEYS.map(k => <th key={k}>+{INCOME_LABEL[k]}</th>)}{LOSS_KEYS.map(k => <th key={k}>−{INCOME_LABEL[k]}</th>)}</tr>
+          </thead>
+          <tbody>
+            {state.players.map((p, i) => (
+              <tr key={p.id}>
+                <th style={{ borderLeft: `3px solid ${p.colour}` }}>{p.name.replace('Player ', 'P')}</th>
+                {GAIN_KEYS.map(k => <td key={k}>{income[i].gained[k]}</td>)}
+                {LOSS_KEYS.map(k => <td key={k}>{income[i].lost[k]}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function describeBundle(bundle) {
   return Object.entries(bundle).map(([r, n]) => `${n} ${r}`).join(' + ')
 }
@@ -370,10 +476,18 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
   const replayStarts = useMemo(() => (replayStates ? turnStarts(replayStates) : []), [replayStates])
   // While replaying, everything below renders the historical position read-only.
   const gameState = replaying ? replayStates[replayAt] : game.state
+  const [showPips, setShowPips] = useState(false)
   const [message, setMessage] = useState(null)
   const [tradeGive, setTradeGive] = useState('brick')
   const [tradeReceive, setTradeReceive] = useState('wood')
   const [tab, setTab] = useState('log')
+  // Replayed history for the Analysis tab, cut at the replay position if any.
+  const history = useMemo(() => {
+    if (tab !== 'analysis') return null
+    const states = replayStates ?? replay(game.options, game.actions).states
+    const at = replaying ? replayAt : game.actions.length
+    return { states: states.slice(0, at + 1), actions: game.actions.slice(0, at) }
+  }, [tab, replayStates, replaying, replayAt, game.options, game.actions])
   const [tradeOpen, setTradeOpen] = useState(false)
   const [buildOpen, setBuildOpen] = useState(false)
   const [devPanel, setDevPanel] = useState(null) // null | 'yearOfPlenty' | 'monopoly'
@@ -568,6 +682,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
           <BoardViewport contentWidth={BOARD_WIDTH} contentHeight={BOARD_HEIGHT}>
             <HexBoard
               board={gameState.board}
+              pipLabels={showPips ? openIntersectionPips(gameState) : null}
               placements={placements}
               roads={roadPlacements}
               cities={cityPlacements}
@@ -630,8 +745,14 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
               <button className={`g-tab${tab === 'log' ? ' g-tab-active' : ''}`} onClick={() => setTab('log')}>
                 Game Log
               </button>
+              <button className={`g-tab${tab === 'analysis' ? ' g-tab-active' : ''}`} onClick={() => setTab('analysis')}>
+                Analysis
+              </button>
             </div>
             {tab === 'log' && <GameLog log={gameState.log} players={gameState.players} />}
+            {tab === 'analysis' && history && (
+              <AnalysisPanel state={gameState} history={history} showPips={showPips} onTogglePips={setShowPips} />
+            )}
           </div>
         </aside>
       </div>

@@ -638,3 +638,53 @@ a.g-btn {
   display: inline-block;
   text-decoration: none;
 }
+
+/* ---------- Analysis tab ---------- */
+.g-analysis {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+.g-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.g-table th,
+.g-table td {
+  padding: 3px 4px;
+  text-align: right;
+  border-bottom: 1px solid var(--g-border);
+}
+.g-table thead th {
+  color: var(--g-text-dim);
+  font-weight: 600;
+}
+.g-table tbody th {
+  text-align: left;
+  padding-left: 6px;
+  font-weight: 600;
+}
+.g-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--g-text-dim);
+}
+.g-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.g-legend-bar {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--g-accent-2);
+}
+.g-legend-tick {
+  width: 12px;
+  height: 2px;
+  background: var(--g-text);
+}

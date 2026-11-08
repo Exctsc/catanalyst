@@ -186,7 +186,7 @@ function RobberMarker({ cx, cy }) {
   );
 }
 
-export default function HexBoard({ board, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
+export default function HexBoard({ board, pipLabels = null, placements = [], roads = [], cities = [], robberHex = null, onIntersectionClick, onEdgeClick, onHexClick, onPortClick, selectedHex = null, selectedPort = null }) {
   const settlementMap = new Map(placements.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
   const roadMap = new Map(roads.map(({ edgeIndex, colour }) => [edgeIndex, colour]));
   const cityMap = new Map(cities.map(({ intersectionIndex, colour }) => [intersectionIndex, colour]));
@@ -258,6 +258,15 @@ export default function HexBoard({ board, placements = [], roads = [], cities = 
           />
         );
       })}
+      {/* Analysis overlay: pip value at each open intersection. Never clickable. */}
+      {pipLabels && pipLabels.map(({ vertex, pips }) => (
+        <g key={`pip-${vertex}`} pointerEvents="none">
+          <circle cx={VERTICES[vertex].x} cy={VERTICES[vertex].y} r={9} fill="#15181f" stroke="#e7e9ee" strokeWidth={1} />
+          <text x={VERTICES[vertex].x} y={VERTICES[vertex].y} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="bold" fill="#e7e9ee">
+            {pips}
+          </text>
+        </g>
+      ))}
       {/* Hit targets only — no fill, drawn last so they sit above every visual
           (including the road slots, which keep their clear middle section). */}
       {onIntersectionClick && VERTICES.map(({ x, y }, i) => (
