@@ -51,16 +51,16 @@
 }
 .g-header .g-brand {
   font-weight: 700;
-  font-size: 18px;
+  font-size: 20.5px;
   color: var(--g-accent);
   letter-spacing: 0.4px;
 }
 .g-header .g-turn {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
 }
 .g-header .g-phase {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--g-text-dim);
   text-transform: capitalize;
 }
@@ -71,7 +71,7 @@
   gap: 14px;
 }
 .g-header .g-status {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   padding: 5px 12px;
   border-radius: 6px;
@@ -107,7 +107,7 @@
   color: white;
   padding: 8px 16px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   z-index: 5;
@@ -124,7 +124,7 @@
 .g-winner-card {
   padding: 28px 44px;
   border-radius: 14px;
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 800;
   color: white;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -176,7 +176,7 @@
   backdrop-filter: blur(3px);
 }
 .g-zoom-level {
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--g-text-dim);
   min-width: 34px;
@@ -194,7 +194,7 @@
   border: 1px solid var(--g-border);
   background: var(--g-panel-2);
   color: var(--g-text);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -224,7 +224,7 @@
   border-radius: 7px;
   border: 1px solid var(--g-border);
   background: var(--g-panel-2);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   cursor: pointer;
 }
@@ -279,11 +279,11 @@
 }
 .g-player .g-pname {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 16px;
   flex: 1 1 auto;
 }
 .g-player .g-pstat {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--g-text-dim);
   display: flex;
   align-items: center;
@@ -292,12 +292,12 @@
 .g-player .g-pvp {
   font-weight: 700;
   color: var(--g-accent);
-  font-size: 14px;
+  font-size: 16px;
   min-width: 34px;
   text-align: right;
 }
 .g-player .g-badge {
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1;
 }
 
@@ -319,7 +319,7 @@
   background: none;
   border: none;
   color: var(--g-text-dim);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -338,7 +338,7 @@
   gap: 5px;
 }
 .g-log-entry {
-  font-size: 12.5px;
+  font-size: 14.5px;
   line-height: 1.35;
   padding: 4px 8px;
   border-radius: 5px;
@@ -384,11 +384,11 @@
   margin-bottom: 4px;
 }
 .g-card .g-card-count {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
 }
 .g-card .g-card-label {
-  font-size: 9px;
+  font-size: 10.5px;
   color: var(--g-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -402,7 +402,7 @@
 }
 .g-devhand-empty {
   color: var(--g-text-dim);
-  font-size: 12px;
+  font-size: 14px;
   font-style: italic;
   align-self: center;
 }
@@ -417,15 +417,15 @@
   border: 1px solid var(--g-border);
 }
 .g-devcard-icon {
-  font-size: 16px;
+  font-size: 18.5px;
   line-height: 1.1;
 }
 .g-devcard-count {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
 }
 .g-devcard-label {
-  font-size: 8.5px;
+  font-size: 10px;
   color: var(--g-text-dim);
   text-transform: uppercase;
   letter-spacing: 0.2px;
@@ -438,7 +438,7 @@
   border: 1px solid var(--g-accent);
   background: var(--g-accent);
   color: #1a1400;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -451,7 +451,7 @@
 }
 .g-devcard-vp {
   margin-top: 4px;
-  font-size: 10px;
+  font-size: 11.5px;
   color: var(--g-accent);
   font-weight: 700;
 }
@@ -469,7 +469,7 @@
   border: 1px solid var(--g-border);
   background: var(--g-panel-2);
   color: var(--g-text);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
@@ -492,7 +492,7 @@
   border-color: #e8b552;
 }
 .g-dice {
-  font-size: 16px;
+  font-size: 18.5px;
   font-weight: 700;
   padding: 6px 12px;
   border-radius: 8px;
@@ -513,7 +513,7 @@
   background: var(--g-panel-2);
   border: 1px solid var(--g-border);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 .g-popover select,
 .g-modal-row select {
@@ -522,7 +522,7 @@
   border: 1px solid var(--g-border);
   border-radius: 6px;
   padding: 5px 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* ---------- Discard / steal panels ---------- */
@@ -535,7 +535,7 @@
   background: var(--g-panel-2);
   border: 1px solid var(--g-border);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 15px;
 }
 .g-modal-row label {
   display: flex;
@@ -550,7 +550,7 @@
   border: 1px solid var(--g-border);
   border-radius: 5px;
   padding: 4px 6px;
-  font-size: 13px;
+  font-size: 15px;
 }
 
 /* ---------- Shared bits for the editor / home / sidebar panels ---------- */
@@ -568,7 +568,7 @@
   gap: 10px;
   padding: 14px 16px;
   border-bottom: 1px solid var(--g-border);
-  font-size: 13px;
+  font-size: 15px;
 }
 .g-field {
   display: flex;
@@ -584,7 +584,7 @@
   border: 1px solid var(--g-border);
   border-radius: 6px;
   padding: 5px 8px;
-  font-size: 13px;
+  font-size: 15px;
   text-transform: none;
 }
 .g-row {
@@ -621,7 +621,7 @@
 }
 .g-home-card h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: 36px;
   color: var(--g-accent);
 }
 .g-home-card p {
@@ -648,7 +648,7 @@ a.g-btn {
 .g-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
 .g-table th,
@@ -669,7 +669,7 @@ a.g-btn {
 .g-legend {
   display: flex;
   gap: 14px;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--g-text-dim);
 }
 .g-legend span {

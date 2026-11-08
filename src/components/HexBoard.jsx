@@ -48,7 +48,7 @@ function Token({ cx, cy, number }) {
         y={cy - 4}
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize={13}
+        fontSize={15}
         fontWeight="bold"
         fill={color}
       >
@@ -70,8 +70,8 @@ function Token({ cx, cy, number }) {
 function Port({ port, selected, onClick }) {
   const { fill, text } = PORT_STYLE[port.type];
   const label = portLabel(port.type);
-  const w = label.length * 6.5 + 10;
-  const h = 18;
+  const w = label.length * 7.6 + 12;
+  const h = 21;
   const [va, vb] = port.vertices;
   const A = VERTICES[va];
   const B = VERTICES[vb];
@@ -92,7 +92,7 @@ function Port({ port, selected, onClick }) {
         x={port.x} y={port.y}
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize={10}
+        fontSize={12}
         fontWeight="bold"
         fill={text}
       >
@@ -176,7 +176,7 @@ function RobberMarker({ cx, cy }) {
         x={cx} y={cy - 30}
         textAnchor="middle"
         dominantBaseline="central"
-        fontSize={11}
+        fontSize={12}
         fontWeight="bold"
         fill="white"
       >
@@ -261,8 +261,8 @@ export default function HexBoard({ board, pipLabels = null, placements = [], roa
       {/* Analysis overlay: pip value at each open intersection. Never clickable. */}
       {pipLabels && pipLabels.map(({ vertex, pips }) => (
         <g key={`pip-${vertex}`} pointerEvents="none">
-          <circle cx={VERTICES[vertex].x} cy={VERTICES[vertex].y} r={9} fill="#15181f" stroke="#e7e9ee" strokeWidth={1} />
-          <text x={VERTICES[vertex].x} y={VERTICES[vertex].y} textAnchor="middle" dominantBaseline="central" fontSize={10} fontWeight="bold" fill="#e7e9ee">
+          <circle cx={VERTICES[vertex].x} cy={VERTICES[vertex].y} r={10} fill="#15181f" stroke="#e7e9ee" strokeWidth={1} />
+          <text x={VERTICES[vertex].x} y={VERTICES[vertex].y} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold" fill="#e7e9ee">
             {pips}
           </text>
         </g>
