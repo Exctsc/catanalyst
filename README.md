@@ -3,10 +3,25 @@
 **A training tool for competitive Catan players.** Build any board, set up any position,
 control the dice, and replay or branch any game, all on one screen.
 
-<!-- TONY: personal intro here -->
+## Why I built this
+
+I'm Tony, and I made Catanalyst because competitive Catan players have nowhere to study
+their games. I wanted one tool that anyone who plays Catan seriously could open and use to
+get better.
+
+I've had friends try it, from casual players on Colonist to national-level players,
+including the 2025 Canadian national champion, and they've all liked it. What they keep
+coming back to:
+
+- **Screenshot import.** Take a screenshot of an online board and it's rebuilt in a few
+  clicks, so reviewing a game starts in seconds instead of re-entering every hex by hand.
+- **Exact positions.** You can set up the moment you want to study: the board, every
+  player's hand, and even their development cards, then play it out from there.
+- **Better than a replay.** Players have told me it helps them analyze their games far
+  more than rewatching a replay, because they can stop, change the decision, and see what
+  happens instead.
 
 ![Catanalyst game screen](docs/screenshot.png)
-<!-- Placeholder: add a screenshot at docs/screenshot.png or a short GIF at docs/demo.gif -->
 
 ## Who it's for
 

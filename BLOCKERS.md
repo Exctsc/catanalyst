@@ -14,8 +14,8 @@ autonomous attempt had been refused by the permission classifier). Later commits
    synthetic trackpad events; a real trackpad is the remaining check.
 2. Connect the repo to Netlify (`netlify.toml` is ready: `npm run build`, publish `dist`, SPA
    redirect for `?board=` links), then make the GitHub repo public.
-3. Fill in the README intro at `<!-- TONY: personal intro here -->`, add a screenshot at
-   `docs/screenshot.png` (or a GIF), and record the 60 to 90 second demo.
+3. Record the 60 to 90 second demo. (The README intro and `docs/screenshot.png` are done;
+   the intro is written from Tony's own account and worth a read-through.)
 4. Get 5 to 10 competitive players to try it and collect quotes.
 
 ## Worth a look (not blockers)
