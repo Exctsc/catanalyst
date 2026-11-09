@@ -4,7 +4,8 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 712 assertions, 0
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`); the app is live at
+> https://catanalyst.netlify.app. `npm test`: 712 assertions, 0
 > failures across 34 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
@@ -297,7 +298,9 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
     message after 20 s. The fix if it matters: a TURN service (e.g. Cloudflare or Metered, both
     need an account) added to the Peer config in `src/net/peer.js`. Guests' own copies are not
     saved; the host's game autosaves as usual. A guest who drops can rejoin with the same code.
-15. **Online needs the app deployed**: a friend can't open `localhost` on the host's computer.
+15. **Hosting**: live at https://catanalyst.netlify.app (`npm run deploy`). Netlify's free plan
+    pins a 202×64 "Powered by Netlify" badge iframe over the bottom-right corner; a `:has(#nl-badge-frame)`
+    rule in `game.css` pads the tray, sidebar and Home so it never covers a button.
 
 ---
 

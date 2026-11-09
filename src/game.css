@@ -978,3 +978,10 @@ a.g-btn {
 .g-online-seat .g-swatch { display: inline-block; width: 12px; height: 12px; }
 .g-online-seat .g-dim { flex: 1 1 auto; }
 .g-powner { font-size: 13px; font-weight: 500; color: var(--g-text-dim); }
+
+/* Netlify's free plan pins a "built with" badge (a 202×64 iframe) over the
+   bottom-right corner on the hosted site; leave that corner clear so it never
+   covers a button. Matches nothing locally, where there is no badge. */
+:root:has(#nl-badge-frame) .g-tray { padding-bottom: 72px; }
+:root:has(#nl-badge-frame) .g-sidebar,
+:root:has(#nl-badge-frame) .g-home { padding-bottom: 80px; }

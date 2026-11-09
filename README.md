@@ -3,6 +3,8 @@
 **A training tool for competitive Catan players.** Build any board, set up any position,
 control the dice, and replay or branch any game, all on one screen.
 
+**Try it: https://catanalyst.netlify.app**
+
 ## Why I built this
 
 I'm Tony, and I made Catanalyst because competitive Catan players have nowhere to study
@@ -103,8 +105,9 @@ npm test
 npm run build && npm run preview
 ```
 
-`npm run lint` runs ESLint. Deployment: `netlify.toml` builds with `npm run build`,
-publishes `dist`, and rewrites every path to the app so board links work.
+`npm run lint` runs ESLint. It is hosted on Netlify at https://catanalyst.netlify.app:
+`npm run deploy` builds and publishes (`netlify.toml` rewrites every path to the app so board
+and join links work).
 
 ## How it works
 

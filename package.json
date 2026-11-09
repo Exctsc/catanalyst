@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "for f in tests/*.test.mjs; do node \"$f\" || exit 1; done"
+    "test": "for f in tests/*.test.mjs; do node \"$f\" || exit 1; done",
+    "deploy": "npm run build && npx -y netlify-cli@27.14.2 deploy --prod --no-build --dir dist"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

@@ -25,6 +25,9 @@ dist-ssr
 node_modules/
 .env
 
+# Netlify CLI link to the deployed site
+.netlify
+
 # Local tool config
 .claude/settings.local.json
 .claude/.headroom_wrap_marker.json
