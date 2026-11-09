@@ -80,8 +80,11 @@ function Port({ port, selected, onClick }) {
 // fit-to-frame zoom is far smaller than a mouse can reliably hit, so the thing
 // the browser hit-tests is decoupled from the thing it draws. Vertices sit
 // ~50 units apart, so r=16 targets stay well clear of each other.
-const HIT_RADIUS = 16;
-const HIT_STROKE = 18;
+// On touch screens (a fingertip, not a cursor) the targets grow; corners are
+// ~50 units apart, so r=22 still leaves them clear of each other.
+const COARSE = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+const HIT_RADIUS = COARSE ? 22 : 16;
+const HIT_STROKE = COARSE ? 26 : 18;
 
 function edgeEndpoints(edgeIndex, shrink) {
   const [v1, v2] = EDGES[edgeIndex];

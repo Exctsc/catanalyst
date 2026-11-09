@@ -51,6 +51,9 @@ have had analysis boards for decades. Catan players have screenshots.
   Friends join with a room code and take a seat; each player sees only their own hand and can
   only act on their own turn. Browsers connect directly (WebRTC via PeerJS), so there is no
   server or account. Seats nobody takes are played on the host's screen.
+- **Works on phones**: the board fills the screen, players, log and online seats slide out from
+  a ☰ menu, the cards and action buttons fold away to see the board, and board targets grow
+  for fingers.
 - **Board generator**: standard random boards, or **balanced** boards with no touching
   6/8 and no touching equal numbers.
 - **Board from a screenshot**: load a screenshot of an online game's board (tested on Colonist),
@@ -140,5 +143,5 @@ and join links work).
   dice luck) and leaves the judgment to you.
 - **Expansions** (Seafarers, Cities & Knights, 5–6 players). The base game is where
   competitive play happens.
-- **Mobile-first layout.** It works on narrow screens but is designed for a desktop, which
-  is where people study.
+- **A native phone app.** The site works on phones (a dedicated layout under 720px wide), but
+  deep study is still easiest on a desktop.

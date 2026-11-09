@@ -284,8 +284,13 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 9. **Sound cues come from state diffs**, so bank and player trades play their cue explicitly.
 10. **Copy link** depends on clipboard permission; when refused (e.g. some embedded browsers) the
     button stays as is, and the code field and Open link still work.
-11. The game screen is desktop-first; narrow screens work but are cramped. Below 1100px the
-    header brand shows only the ⬡ icon so the status chip keeps its room.
+11. **Phones (≤720px wide)** get their own layout: the board fills the width; the sidebar
+    (players, log, online room, plus Home / Play online / Export / Replay / Edit position and
+    sound) is a slide-out ☰ menu; the tray folds away ("Hide cards", and it unfolds itself when
+    your turn starts); tiles and cards shrink to fit six tiles on one row; pop-up panels span the
+    screen; board hit targets grow on touch screens (vertex r=22, edge 26). Cost tooltips are
+    hover-only, so phones don't show them. The editor stacks its sidebar under the board. Landscape
+    phones get the desktop layout. Below 1100px the header brand shows only the ⬡ icon.
 12. **Screenshot tracing assumes the standard orientation** (rows of 3-4-5-4-3, pointy-top hexes)
     and Colonist-style ships for ports (white sails, orange plank docks). A themed or rotated
     board, a robber or piece on a token, very sloppy clicks or a very small screenshot can misread

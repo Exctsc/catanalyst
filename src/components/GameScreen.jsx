@@ -529,6 +529,10 @@ export default function GameScreen({ game, setGame, online = null, onHostOnline,
   const [tradeOpen, setTradeOpen] = useState(false)
   const [buildMode, setBuildMode] = useState(null) // null | 'road' | 'settlement' | 'city'
   const [devPanel, setDevPanel] = useState(null) // null | 'yearOfPlenty' | 'monopoly'
+  // Phone layout: the sidebar is a slide-out menu and the tray can be folded away.
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [trayOpen, setTrayOpen] = useState(true)
+  const [trayTurn, setTrayTurn] = useState(null) // whose turn last opened the tray
   const [yop, setYop] = useState(EMPTY_HAND)
 
   useGameSounds(gameState)
@@ -691,6 +695,12 @@ export default function GameScreen({ game, setGame, online = null, onHostOnline,
   const canTradeOrBuild = !isSetup && !preRoll
   const canPlayDev = gameState.phase === 'play' && !gameState.devCardPlayedThisTurn && !robber && !roadBuilding && winner === null
   const myTurn = owns(gameState.currentPlayerIndex)
+  // Unfold the tray when a turn of ours starts (state adjusted during render, not in an effect).
+  const turnKey = myTurn ? `${gameState.turn}:${gameState.currentPlayerIndex}:${gameState.phase}` : null
+  if (turnKey !== trayTurn) {
+    setTrayTurn(turnKey)
+    if (turnKey && !trayOpen) setTrayOpen(true)
+  }
   const showActions = !robber && !winner && !roadBuilding && !sandbox && !replaying && myTurn
   const interactive = !replaying
   const boardInteractive = interactive && (sandbox || myTurn)
@@ -723,40 +733,47 @@ export default function GameScreen({ game, setGame, online = null, onHostOnline,
   // One line telling the player what to do next.
   let prompt = null
   if (showActions) {
-    if (isSetup) prompt = `Place a ${gameState.setup.expecting}: click a glowing ${gameState.setup.expecting === 'road' ? 'edge' : 'corner'}`
+    if (isSetup) prompt = `Place a ${gameState.setup.expecting}: choose a glowing ${gameState.setup.expecting === 'road' ? 'edge' : 'corner'}`
     else if (preRoll) prompt = 'Roll the dice to start your turn'
-    else if (mode === 'road') prompt = 'Click a glowing edge to build a road'
-    else if (mode === 'settlement') prompt = 'Click a glowing corner to build a settlement'
-    else if (mode === 'city') prompt = 'Click a glowing settlement to make it a city'
+    else if (mode === 'road') prompt = 'Choose a glowing edge to build a road'
+    else if (mode === 'settlement') prompt = 'Choose a glowing corner to build a settlement'
+    else if (mode === 'city') prompt = 'Choose a glowing settlement to make it a city'
     else prompt = 'Build, trade, or end your turn'
   } else if (robber?.stage === 'move' && interactive && !sandbox && myTurn) {
-    prompt = `${currentPlayer.name}: click a hex to move the robber there`
+    prompt = `${currentPlayer.name}: choose a hex to move the robber there`
+  } else if (guest && !gameState.players.some((_, i) => owns(i))) {
+    prompt = 'Take a seat to play: Online panel, or ☰ Menu on a phone'
   } else if (online && !sandbox && !replaying && winner === null && !myTurn) {
     const waitingOn = robber?.stage === 'discard' ? robber.pending[0] : gameState.currentPlayerIndex
     if (!owns(waitingOn)) prompt = `Waiting for ${gameState.players[waitingOn].name} (${ownerLabel(waitingOn)})…`
   }
 
+  const gameButtons = !sandbox && !replaying && !guest && (
+    <>
+      {!online && <button className="g-btn g-btn-primary" onClick={() => { setMenuOpen(false); onHostOnline() }}>Play online</button>}
+      <button className="g-btn" onClick={onExport}>Export</button>
+      <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
+        Replay
+      </button>
+      <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
+        Edit position
+      </button>
+    </>
+  )
+
   return (
-    <div className="g-app">
+    <div className={`g-app g-game${trayOpen ? '' : ' g-tray-folded'}`}>
       <header className="g-header">
         <button className="g-brand" onClick={onHome} title="Home" aria-label="Home">⬡<span className="g-brand-text"> Catanalyst</span></button>
         <span className="g-turn" style={{ color: currentPlayer.colour }}>{currentPlayer.name}'s turn</span>
         <span className="g-phase">{isSetup ? 'Setup' : `Turn ${gameState.turn}`} · 🎲 {DICE_LABELS[gameState.diceMode].split(' (')[0]}</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`} title={status}>{status}</span>}
-          {!sandbox && !replaying && !guest && (
-            <>
-              {!online && <button className="g-btn g-btn-primary" onClick={onHostOnline}>Play online</button>}
-              <button className="g-btn" onClick={onExport}>Export</button>
-              <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
-                Replay
-              </button>
-              <button className="g-btn" onClick={() => { setSandbox({ player: gameState.currentPlayerIndex, tool: 'settlement' }); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
-                Edit position
-              </button>
-            </>
-          )}
-          <AudioControls />
+          <span className="g-header-actions">
+            {gameButtons}
+            <AudioControls />
+          </span>
+          <button className="g-btn g-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu" aria-expanded={menuOpen}>☰</button>
         </div>
       </header>
 
@@ -787,7 +804,17 @@ export default function GameScreen({ game, setGame, online = null, onHostOnline,
           )}
         </main>
 
-        <aside className="g-sidebar">
+        {menuOpen && <div className="g-menu-backdrop" onClick={() => setMenuOpen(false)} />}
+        <aside className={`g-sidebar${menuOpen ? ' g-menu-open' : ''}`}>
+          <div className="g-menu-head">
+            <strong>Menu</strong>
+            <button className="g-panel-close" onClick={() => setMenuOpen(false)} aria-label="Close menu">×</button>
+          </div>
+          <div className="g-menu-actions">
+            <button className="g-btn" onClick={onHome}>Home</button>
+            {gameButtons}
+            <AudioControls />
+          </div>
           <PlayerList
             players={gameState.players}
             currentPlayerIndex={gameState.currentPlayerIndex}
@@ -848,6 +875,9 @@ export default function GameScreen({ game, setGame, online = null, onHostOnline,
       </div>
 
       <footer className="g-tray">
+        <button className="g-tray-toggle" onClick={() => setTrayOpen(o => !o)} aria-expanded={trayOpen}>
+          {trayOpen ? 'Hide cards ▾' : 'Show cards and actions ▴'}
+        </button>
         <div className="g-tray-float">
           {robber?.stage === 'discard' && interactive && owns(robber.pending[0]) && (
             <DiscardPanel
@@ -877,7 +907,7 @@ export default function GameScreen({ game, setGame, online = null, onHostOnline,
                 <strong style={{ color: currentPlayer.colour }}>
                   Place {roadBuilding.remaining} free road{roadBuilding.remaining > 1 ? 's' : ''}
                 </strong>
-                <span className="g-dim">Click a glowing edge</span>
+                <span className="g-dim">Choose a glowing edge</span>
                 <button className="g-btn" onClick={() => act({ type: 'skipRoadBuilding', player: me })}>Skip</button>
               </div>
             </div>

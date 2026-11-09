@@ -74,12 +74,12 @@ export default function Home({ error, games = [], joinCode = '', onJoin, onResum
             <section className="g-side-section">
               <strong>Your games</strong>
               {games.map(({ id, name, game }) => (
-                <div key={id} className="g-row" style={{ alignItems: 'center', flexWrap: 'nowrap' }}>
-                  <span style={{ flex: '1 1 0', minWidth: 0 }}>
+                <div key={id} className="g-row g-game-row">
+                  <span className="g-game-name">
                     {name}
                     <span className="g-dim"> · {game.state.winner !== null ? `${game.state.players[game.state.winner].name} won` : game.state.phase === 'setup' ? 'setup' : `turn ${game.state.turn}`}</span>
                   </span>
-                  <span className="g-row" style={{ flexShrink: 0 }}>
+                  <span className="g-row g-game-buttons">
                     <button className="g-btn" onClick={() => onResume(id)}>Resume</button>
                     <button className="g-btn" onClick={() => onDelete(id)} aria-label={`Delete ${name}`}>Delete</button>
                   </span>
