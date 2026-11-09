@@ -16,7 +16,7 @@ autonomous attempt had been refused by the permission classifier). Later commits
    team `exctsc`). Your team had visitor login
    protection on; it was turned off for this site at your request so anyone with the link can
    open it. Redeploy after changes with `npm run deploy`. Optional: link the GitHub repo in
-   Netlify (Project configuration → Build & deploy) for automatic deploys on push. The repo is
+   Netlify (Project configuration → Developer settings → Continuous deployment → Link repository) for automatic deploys on push. The repo is
    public (Home links to it); commit author emails are visible, so consider GitHub's noreply
    commit email for future commits. The free plan adds a "Powered by Netlify" badge in
    the bottom-right corner; the app leaves that corner clear when the badge is present.
