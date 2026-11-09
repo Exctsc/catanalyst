@@ -13,7 +13,7 @@ autonomous attempt had been refused by the permission classifier). Later commits
 1. Play it for an hour on a trackpad. Pinch-zoom and drag-vs-click were tuned on a mouse and on
    synthetic trackpad events; a real trackpad is the remaining check.
 2. ~~Deploy~~ Done: live at **https://catanalyst.netlify.app** (Netlify project `catanalyst`,
-   team `exctsc`, logged in as tony.ren@mail.utoronto.ca). Your team had visitor login
+   team `exctsc`). Your team had visitor login
    protection on; it was turned off for this site at your request so anyone with the link can
    open it. Redeploy after changes with `npm run deploy`. Optional: link the GitHub repo in
    Netlify (Project configuration → Build & deploy) for automatic deploys on push, and make the
