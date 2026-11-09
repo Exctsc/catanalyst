@@ -4,8 +4,8 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 688 assertions, 0
-> failures across 33 suites. Build and lint are clean. The full product was verified end to end
+> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`). `npm test`: 712 assertions, 0
+> failures across 34 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").
 
 ---
@@ -23,10 +23,11 @@ multiplayer, AI and chat are deliberately out of scope.
 ```
 src/
   main.jsx, index.css        Vite entry
-  App.jsx                    screen switcher (home / editor / game), game library, autosave, import/export, ?board= links
+  App.jsx                    screen switcher (home / editor / game / guest), game library, autosave, import/export, ?board= and ?join= links, hosting + joining
   game.css                   the whole dark theme: CSS variables + every g-* class
   components/
-    Home.jsx                 new game (board + dice mode), saved games (resume/delete), board editor, import
+    Home.jsx                 new game (board + dice mode), join a friend's room, saved games, board editor, import
+    Cards.jsx                resource cards, click-to-pick rows, trade panel
     BoardEditor.jsx          per-hex terrain/number, per-port type, validation + free mode, share code, start
     DiceSetup.jsx            dice-mode picker used by Home and the editor
     FilePicker.jsx           styled button standing in for a native file input
@@ -48,6 +49,9 @@ src/
     analysis.js              pips, expected income, roll histogram, income breakdown
     boardImage.js            screenshot tracing: colour → terrain, two-click alignment
     viewport.js              zoom/pan maths
+    online.js                online protocol: seats, who may act, host/guest message reducers (pure)
+  net/
+    peer.js                  PeerJS transport: host a room / join by code, heartbeat, error text
   audio/                     synthesized Web Audio cues + state-diff → cue mapping
 tests/                       *.test.mjs suites (npm test runs each with node) + bot.mjs
 netlify.toml                 build, publish dist, SPA redirect
@@ -125,6 +129,18 @@ bank (`bankTradePlan` turns e.g. 8 brick for ore + wheat into two 4:1 trades) or
 player. Discard, Year of Plenty and Monopoly use the same cards instead of number boxes and
 dropdowns.
 
+**Online play** (added after the run, at Tony's request): **Play online** in a game opens a room
+(6-character code, invite link `?join=CODE`). Guests enter a name and the code on Home, then take
+a seat (one each; the host can take one back). Seats nobody takes are played on the host's screen.
+The host's browser is the authority: `hostReceive` checks each guest action's acting player
+(`actorOf`) against the seat list, applies it with the normal engine and broadcasts the appended
+actions; guests rebuild the game from the first sync and apply appends in order, asking for a
+resync if one is missed. Sandbox edits and scripted dice are host-only. Each screen shows its own
+seat's hand and dev cards, glows spots and enables controls only on its own turn, answers only
+trades addressed to it, and shows "Waiting for …" otherwise; guests get no Replay, Edit position
+or Analysis. A 4-second heartbeat drops a silent guest after 15 s (their seat returns to the host)
+and tells a guest when the host is gone.
+
 **Training features**
 - **Board generator**: random, or balanced (no adjacent 6/8, no adjacent equal numbers).
 - **Board editor**: click a hex for terrain + number, click a port for its type; validation against
@@ -194,7 +210,7 @@ dropdowns.
 
 ## Tests (`npm test`)
 
-33 suites, 688 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
+34 suites, 712 assertions. Original suites: `roads`, `setup`, `cities`, `trade`, `robber`, `win`,
 `log`, `devcards`, `largestarmy`, `longestroad`, `turnlock`, `ports`, `viewport`, `sound`. Added in
 the finish run: `board` (state-owned layout), `roadblock`, `connectivity`, `supply`,
 `playerindex`, `turncounter`, `playertrade`, `engine` (rng, dispatch, full scripted game twice +
@@ -207,7 +223,9 @@ whole synthetic screenshots with tokens, pieces and noise, two-click alignment) 
 blurred pip bars, a whole board) and `harbours` (coastal edges, ships found by their docks on a
 synthetic sea, the 4+5 type assignment, version-2 codes, port placement validation) and
 `buildui` (legal spots in setup and play, the shown build costs match what the rules charge,
-bank trades picked on cards).
+bank trades picked on cards) and `online` (who may make each move, seats, malformed and
+out-of-seat messages refused, a whole game played through a host and two guests ending on
+identical states, resync after a gap, leaving and reclaiming seats).
 
 Fixture changes made because a rule changed (no assertion was weakened): play-phase settlement
 fixtures in `win` and `longestroad` gained a road to the spot (connectivity rule); the city-win
@@ -249,9 +267,10 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
 
 ## Known issues and limits
 
-1. **Hotseat trust model.** One screen, one set of controls; the current player's hand and dev
-   cards (including hidden VP cards) are visible to whoever is at the keyboard. Per-player hidden
-   information would need per-client state, which is out of scope.
+1. **Hotseat trust model.** On one screen the current player's hand and dev cards (including
+   hidden VP cards) are visible to whoever is at the keyboard. Online, each screen shows only its
+   own seats' cards, but guests receive the full action list, so someone who opens developer
+   tools could work out other hands: fine between friends, not cheat-proof.
 2. **Road Building "Skip" forfeits free roads** (forgiving simplification to avoid soft-locks).
 3. **Discard requirement is computed at roll time**; a hand changing mid-discard (impossible via
    the UI, possible via sandbox edits during a pending discard) would leave it stale. Sandbox
@@ -272,6 +291,13 @@ failed while zero-travel synthetic clicks passed. Capture is now taken only once
     a hex or port; the user corrects it in the editor (ports via type + ◀ ▶ Move).
 13. **Port icon profiles are measured on Colonist's current art**; new artwork means re-measuring
     the six rows in `ICON_PROFILES`.
+14. **Online play needs a direct browser-to-browser connection.** The free PeerJS server only
+    introduces the browsers. A VPN (Cloudflare WARP on Tony's Mac blocks it completely) or a strict
+    school/work network can stop it; there is no relay (TURN) server, so the guest gets a clear
+    message after 20 s. The fix if it matters: a TURN service (e.g. Cloudflare or Metered, both
+    need an account) added to the Peer config in `src/net/peer.js`. Guests' own copies are not
+    saved; the host's game autosaves as usual. A guest who drops can rejoin with the same code.
+15. **Online needs the app deployed**: a friend can't open `localhost` on the host's computer.
 
 ---
 

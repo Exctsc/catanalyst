@@ -379,7 +379,7 @@ function ActionTile({ label, badge, active, disabled, onClick, cost, primary, ch
   )
 }
 
-function PlayerList({ players, currentPlayerIndex, largestArmy, longestRoad }) {
+function PlayerList({ players, currentPlayerIndex, largestArmy, longestRoad, ownerLabel }) {
   return (
     <div className="g-players">
       {players.map((p, i) => {
@@ -387,7 +387,7 @@ function PlayerList({ players, currentPlayerIndex, largestArmy, longestRoad }) {
         return (
           <div key={p.id} className={`g-player${i === currentPlayerIndex ? ' g-player-active' : ''}`}>
             <span className="g-swatch" style={{ background: p.colour }} />
-            <span className="g-pname">{p.name}</span>
+            <span className="g-pname">{p.name}{ownerLabel && <span className="g-powner"> · {ownerLabel(i)}</span>}</span>
             {largestArmy === i && <span className="g-badge" title="Largest Army">⚔️</span>}
             {longestRoad === i && <span className="g-badge" title="Longest Road">🛣️</span>}
             <span className="g-pstat" title="resource cards">🃏 {cards}</span>
@@ -430,6 +430,52 @@ function DevHand({ player, canPlay, onPlay }) {
   )
 }
 
+// Online room: the invite, and who plays each seat. Seats nobody has taken
+// are played on the host's screen.
+function OnlinePanel({ online, players }) {
+  const [copied, setCopied] = useState(false)
+  const host = online.role === 'host'
+  const owner = i => {
+    const id = online.seats[i]
+    if (id === null) return host ? 'You' : 'Host'
+    if (id === online.myId) return 'You'
+    return online.names[id] ?? 'Guest'
+  }
+  async function copy() {
+    try { await navigator.clipboard.writeText(online.inviteLink); setCopied(true) } catch { setCopied(false) }
+  }
+  return (
+    <section className="g-side-section g-online">
+      <strong>{online.code ? `Online · room ${online.code}` : 'Opening a room…'}</strong>
+      {online.error && <ul className="g-errors"><li>{online.error}</li></ul>}
+      {!host && online.status === 'closed' && <ul className="g-errors"><li>Lost the connection to the host.</li></ul>}
+      {host && online.inviteLink && (
+        <div className="g-row">
+          <input className="g-online-link" readOnly value={online.inviteLink} onFocus={e => e.target.select()} aria-label="Invite link" />
+          <button className="g-btn" onClick={copy}>{copied ? 'Copied' : 'Copy link'}</button>
+        </div>
+      )}
+      <div className="g-online-seats">
+        {players.map((p, i) => {
+          const id = online.seats[i]
+          return (
+            <div key={p.id} className="g-online-seat">
+              <span className="g-swatch" style={{ background: p.colour }} />
+              <span>{p.name}</span>
+              <span className="g-dim">{owner(i)}</span>
+              {!host && id === null && <button className="g-btn" onClick={() => online.onClaim(i)}>Take seat</button>}
+              {!host && id === online.myId && <button className="g-btn" onClick={() => online.onRelease(i)}>Leave seat</button>}
+              {host && id !== null && <button className="g-btn" onClick={() => online.onReclaim(i)}>Take back</button>}
+            </div>
+          )
+        })}
+      </div>
+      <span className="g-dim">{host ? 'Friends open the link, enter a name and take a seat. Seats nobody takes are played here. A VPN such as Cloudflare WARP can stop friends connecting: turn it off while hosting.' : 'Take a seat to play it (one each). Seats nobody takes are played by the host.'}</span>
+      {host && <button className="g-btn" onClick={online.onStop}>Stop playing online</button>}
+    </section>
+  )
+}
+
 function GameLog({ log, players }) {
   const ref = useRef(null)
   useEffect(() => {
@@ -455,7 +501,11 @@ function GameLog({ log, players }) {
 
 // The play screen. `game` is the engine record { options, actions, state };
 // every change is handed back through setGame.
-export default function GameScreen({ game, setGame, onHome, onBranch, onExport }) {
+export default function GameScreen({ game, setGame, online = null, onHostOnline, onHome, onBranch, onExport }) {
+  // Which seats this screen plays: all of them offline; online, the host plays
+  // untaken seats and a guest the seats they took.
+  const owns = i => !online || online.seats[i] === (online.role === 'host' ? null : online.myId)
+  const guest = online?.role === 'guest'
   const [sandbox, setSandbox] = useState(null) // null | { player, tool }
   const [replayAt, setReplayAt] = useState(null) // null = live, else action index on screen
   const replaying = replayAt !== null
@@ -509,7 +559,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
       next = applyAction(next, action)
       if (typeof next === 'string') { setMessage(next); return false }
     }
-    setGame(next)
+    setGame(next, [].concat(actions))
     setMessage(null)
     return true
   }
@@ -640,15 +690,25 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
   const canBuyDev = !isSetup && !robber && !roadBuilding && winner === null
   const canTradeOrBuild = !isSetup && !preRoll
   const canPlayDev = gameState.phase === 'play' && !gameState.devCardPlayedThisTurn && !robber && !roadBuilding && winner === null
-  const showActions = !robber && !winner && !roadBuilding && !sandbox && !replaying
+  const myTurn = owns(gameState.currentPlayerIndex)
+  const showActions = !robber && !winner && !roadBuilding && !sandbox && !replaying && myTurn
   const interactive = !replaying
+  const boardInteractive = interactive && (sandbox || myTurn)
+  // Whose cards this screen shows: the player to move if it's ours, else our first seat.
+  const viewerIndex = myTurn ? gameState.currentPlayerIndex : gameState.players.findIndex((_, i) => owns(i))
+  const viewer = viewerIndex >= 0 ? gameState.players[viewerIndex] : null
+  const ownerLabel = online ? i => {
+    const id = online.seats[i]
+    if (id === null) return online.role === 'host' ? 'you' : 'host'
+    return id === online.myId ? 'you' : (online.names[id] ?? 'guest')
+  } : null
 
   // Where each piece could go right now; the board glows the chosen kind's spots.
-  const spots = useMemo(() => (replaying || sandbox ? null : {
+  const spots = useMemo(() => (replaying || sandbox || !myTurn ? null : {
     road: legalSpots(gameState, 'road'),
     settlement: legalSpots(gameState, 'settlement'),
     city: legalSpots(gameState, 'city'),
-  }), [gameState, replaying, sandbox])
+  }), [gameState, replaying, sandbox, myTurn])
   const mode = buildMode && showActions && spots?.[buildMode].length ? buildMode : null
   const spotKind = isSetup ? gameState.setup.expecting : roadBuilding ? 'road' : mode
   const glow = spots && spotKind ? spots[spotKind] : []
@@ -669,8 +729,11 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
     else if (mode === 'settlement') prompt = 'Click a glowing corner to build a settlement'
     else if (mode === 'city') prompt = 'Click a glowing settlement to make it a city'
     else prompt = 'Build, trade, or end your turn'
-  } else if (robber?.stage === 'move' && interactive && !sandbox) {
+  } else if (robber?.stage === 'move' && interactive && !sandbox && myTurn) {
     prompt = `${currentPlayer.name}: click a hex to move the robber there`
+  } else if (online && !sandbox && !replaying && winner === null && !myTurn) {
+    const waitingOn = robber?.stage === 'discard' ? robber.pending[0] : gameState.currentPlayerIndex
+    if (!owns(waitingOn)) prompt = `Waiting for ${gameState.players[waitingOn].name} (${ownerLabel(waitingOn)})…`
   }
 
   return (
@@ -681,8 +744,9 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
         <span className="g-phase">{isSetup ? 'Setup' : `Turn ${gameState.turn}`} · 🎲 {DICE_LABELS[gameState.diceMode].split(' (')[0]}</span>
         <div className="g-header-right">
           {status && <span className={`g-status${statusAlert ? ' g-status-alert' : ''}`} title={status}>{status}</span>}
-          {!sandbox && !replaying && (
+          {!sandbox && !replaying && !guest && (
             <>
+              {!online && <button className="g-btn g-btn-primary" onClick={onHostOnline}>Play online</button>}
               <button className="g-btn" onClick={onExport}>Export</button>
               <button className="g-btn" onClick={() => { setReplayAt(game.actions.length); setTradeOpen(false); setBuildMode(null); setDevPanel(null) }}>
                 Replay
@@ -698,7 +762,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
 
       <div className="g-body">
         <main className="g-center">
-          {message && <div className="g-toast">{message}</div>}
+          {(message || online?.notice) && <div className="g-toast">{message || online.notice}</div>}
           <BoardViewport contentWidth={BOARD_WIDTH} contentHeight={BOARD_HEIGHT}>
             <HexBoard
               board={gameState.board}
@@ -709,9 +773,9 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
               robberHex={gameState.robberHex}
               highlightVertices={spots ? (spotKind && spotKind !== 'road' ? glow : []) : undefined}
               highlightEdges={spots ? (spotKind === 'road' ? glow : []) : undefined}
-              onIntersectionClick={interactive ? handleIntersectionClick : undefined}
-              onEdgeClick={interactive ? handleEdgeClick : undefined}
-              onHexClick={interactive && (sandbox ? sandbox.tool === 'robber' : robber?.stage === 'move') ? handleHexClick : undefined}
+              onIntersectionClick={boardInteractive ? handleIntersectionClick : undefined}
+              onEdgeClick={boardInteractive ? handleEdgeClick : undefined}
+              onHexClick={boardInteractive && (sandbox ? sandbox.tool === 'robber' : robber?.stage === 'move') ? handleHexClick : undefined}
             />
           </BoardViewport>
           {winner && !sandbox && !replaying && (
@@ -729,7 +793,9 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
             currentPlayerIndex={gameState.currentPlayerIndex}
             largestArmy={gameState.largestArmy}
             longestRoad={gameState.longestRoad}
+            ownerLabel={ownerLabel}
           />
+          {online && <OnlinePanel online={online} players={gameState.players} />}
           {replaying && (
             <ReplayPanel
               at={replayAt}
@@ -755,7 +821,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
               onDone={finishSandbox}
             />
           )}
-          {gameState.diceMode === 'scripted' && !sandbox && !replaying && (
+          {gameState.diceMode === 'scripted' && !sandbox && !replaying && !guest && (
             <ScriptedDice
               key={formatDiceQueue(gameState.diceQueue)}
               queue={gameState.diceQueue}
@@ -767,9 +833,11 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
               <button className={`g-tab${tab === 'log' ? ' g-tab-active' : ''}`} onClick={() => setTab('log')}>
                 Game Log
               </button>
-              <button className={`g-tab${tab === 'analysis' ? ' g-tab-active' : ''}`} onClick={() => setTab('analysis')}>
-                Analysis
-              </button>
+              {!guest && (
+                <button className={`g-tab${tab === 'analysis' ? ' g-tab-active' : ''}`} onClick={() => setTab('analysis')}>
+                  Analysis
+                </button>
+              )}
             </div>
             {tab === 'log' && <GameLog log={gameState.log} players={gameState.players} />}
             {tab === 'analysis' && history && (
@@ -781,7 +849,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
 
       <footer className="g-tray">
         <div className="g-tray-float">
-          {robber?.stage === 'discard' && interactive && (
+          {robber?.stage === 'discard' && interactive && owns(robber.pending[0]) && (
             <DiscardPanel
               key={robber.pending[0]}
               player={gameState.players[robber.pending[0]]}
@@ -790,7 +858,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
             />
           )}
 
-          {robber?.stage === 'steal' && interactive && (
+          {robber?.stage === 'steal' && interactive && myTurn && (
             <div className="g-float-panel">
               <div className="g-panel-head"><strong>Steal 1 card from:</strong></div>
               <div className="g-trade-actions">
@@ -803,7 +871,7 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
             </div>
           )}
 
-          {roadBuilding && interactive && (
+          {roadBuilding && interactive && myTurn && (
             <div className="g-float-panel">
               <div className="g-panel-head">
                 <strong style={{ color: currentPlayer.colour }}>
@@ -855,11 +923,16 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
                 <span className="g-dim">gives</span><Bundle cards={offer.give} /><span className="g-dim">for</span><Bundle cards={offer.get} />
               </div>
               <div className="g-trade-actions">
-                <button className="g-btn g-btn-primary" onClick={handleAcceptTrade}>
-                  {gameState.players[offer.to].name}: Accept
-                </button>
-                <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.to })}>Decline</button>
-                <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.from })}>Withdraw</button>
+                {owns(offer.to) && (
+                  <>
+                    <button className="g-btn g-btn-primary" onClick={handleAcceptTrade}>
+                      {gameState.players[offer.to].name}: Accept
+                    </button>
+                    <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.to })}>Decline</button>
+                  </>
+                )}
+                {owns(offer.from) && <button className="g-btn" onClick={() => act({ type: 'declineTrade', player: offer.from })}>Withdraw</button>}
+                {!owns(offer.to) && !owns(offer.from) && <span className="g-dim">Waiting for {gameState.players[offer.to].name}…</span>}
               </div>
             </div>
           )}
@@ -876,10 +949,10 @@ export default function GameScreen({ game, setGame, onHome, onBranch, onExport }
         </div>
 
         <div className="g-hand">
-          {RESOURCES.map(r => <ResourceCard key={r} resource={r} count={currentPlayer.resources[r]} />)}
+          {viewer && RESOURCES.map(r => <ResourceCard key={r} resource={r} count={viewer.resources[r]} />)}
         </div>
 
-        {!isSetup && !sandbox && !replaying && <DevHand player={currentPlayer} canPlay={canPlayDev} onPlay={handlePlayDev} />}
+        {!isSetup && !sandbox && !replaying && viewer && <DevHand player={viewer} canPlay={canPlayDev && myTurn} onPlay={handlePlayDev} />}
 
         <div className="g-actions">
           {gameState.dice && (

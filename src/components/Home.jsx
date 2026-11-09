@@ -2,9 +2,19 @@ import { useState } from 'react'
 import DiceSetup from './DiceSetup'
 import FilePicker from './FilePicker'
 import { diceOptions } from '../game/dice'
+import { cleanRoomCode } from '../net/peer'
+
+const NAME_KEY = 'catanalyst.name'
+const savedName = () => { try { return window.localStorage.getItem(NAME_KEY) ?? '' } catch { return '' } }
 
 // Landing screen: start a game, bring in a board, resume or open a game.
-export default function Home({ error, games = [], onResume, onDelete, onImport, onNewGame, onEditor, onScreenshot }) {
+export default function Home({ error, games = [], joinCode = '', onJoin, onResume, onDelete, onImport, onNewGame, onEditor, onScreenshot }) {
+  const [name, setName] = useState(savedName)
+  const [code, setCode] = useState(joinCode)
+  const join = () => {
+    try { window.localStorage.setItem(NAME_KEY, name.trim()) } catch { /* storage unavailable */ }
+    onJoin(code, name.trim() || 'Guest')
+  }
   const [balanced, setBalanced] = useState(true)
   const [dice, setDice] = useState({ diceMode: 'balanced', script: '' })
   const options = diceOptions(dice)
@@ -32,6 +42,23 @@ export default function Home({ error, games = [], onResume, onDelete, onImport, 
             <button className="g-btn g-btn-primary" disabled={typeof options === 'string'} onClick={() => onNewGame({ balanced, ...options })}>
               Start new game
             </button>
+          </section>
+
+          <section className="g-side-section">
+            <strong>Play online with friends</strong>
+            <span className="g-dim">
+              To host, start or open a game, set up the position you want, then press Play online in the
+              game and send your friends the link. To join, enter the host's room code.
+            </span>
+            <form className="g-row" onSubmit={e => { e.preventDefault(); if (code.length === 6) join() }}>
+              <label className="g-field">Your name
+                <input type="text" value={name} maxLength={24} onChange={e => setName(e.target.value)} placeholder="Guest" />
+              </label>
+              <label className="g-field">Room code
+                <input type="text" value={code} onChange={e => setCode(cleanRoomCode(e.target.value))} placeholder="ABC123" autoFocus={!!joinCode} />
+              </label>
+              <button className="g-btn g-btn-primary" type="submit" disabled={code.length !== 6}>Join game</button>
+            </form>
           </section>
 
           <section className="g-side-section">

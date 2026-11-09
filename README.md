@@ -45,6 +45,10 @@ have had analysis boards for decades. Catan players have screenshots.
 - **Picture-based controls**: build and trade from a row of illustrated tiles showing pieces
   left and costs; pick Road, Settlement or City and the legal spots glow on the board. Trades,
   discards and dev card choices are made by clicking resource cards.
+- **Play online with friends**: set up any position, press **Play online**, and send the link.
+  Friends join with a room code and take a seat; each player sees only their own hand and can
+  only act on their own turn. Browsers connect directly (WebRTC via PeerJS), so there is no
+  server or account. Seats nobody takes are played on the host's screen.
 - **Board generator**: standard random boards, or **balanced** boards with no touching
   6/8 and no touching equal numbers.
 - **Board from a screenshot**: load a screenshot of an online game's board (tested on Colonist),
@@ -104,8 +108,12 @@ publishes `dist`, and rewrites every path to the app so board links work.
 
 ## How it works
 
-- **React 19 + Vite**, plain JavaScript, no UI libraries and no runtime dependencies beyond
-  React.
+- **React 19 + Vite**, plain JavaScript, no UI libraries. The only runtime dependency beyond
+  React is PeerJS, for online play.
+- **Online play is host-authoritative**: the host's browser keeps the real game; guests send
+  the actions they want, the host checks the sender owns that seat, applies them with the same
+  engine and broadcasts them. Because the engine is deterministic, every screen stays identical
+  from the action list alone (`src/game/online.js`, tested by playing whole games through it).
 - **Pure game engine** in `src/game/`: every rule is a pure function from state to state
   (or an error string). There is no React in that folder, so the whole rulebook is tested
   in Node.
@@ -114,17 +122,16 @@ publishes `dist`, and rewrites every path to the app so board links work.
   steals, the dev deck shuffle, random boards) comes from a counter-based seeded PRNG whose
   seed and position live in game state. A game is just `{ options, actions }`, which is what
   makes replay, branching, autosave and export cheap and exact.
-- **Tests**: 33 Node suites (`tests/*.test.mjs`, about 690 assertions). These include a
+- **Tests**: 34 Node suites (`tests/*.test.mjs`, about 710 assertions). These include a
   scripted bot that plays complete games, which must replay to a deep-equal state.
 - The SVG board sits inside a CSS-transformed viewport, so hit-testing stays exact at
   any zoom.
 
 ## What I cut and why
 
-- **Online multiplayer.** Colonist already does real-time play very well, and a backend
-  (accounts, matchmaking, sockets, hidden-hand enforcement) would have taken most of the
-  build time for something players already have. Catanalyst is hotseat: one screen, for
-  studying, so everything stays offline and private.
+- **A game server and accounts.** Colonist already does matchmaking and ranked play very well.
+  Catanalyst's online mode is for friends playing a position together: browsers connect
+  directly, with no server of mine and no sign-up.
 - **AI opponents and move suggestions.** A good Catan AI is a research project, and a weak
   one teaches bad habits. The analysis tab gives you the numbers (pips, expected income,
   dice luck) and leaves the judgment to you.

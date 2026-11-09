@@ -29,7 +29,8 @@ starting any work, and re-read FINISH.md whenever you resume or after compaction
 
 ## Scope guard
 
-- No backend, Socket.io, accounts, online multiplayer, AI players or chat.
+- No backend, Socket.io, accounts, AI players or chat. Online play exists (Tony asked for it on
+  2026-11-08) and stays serverless: browser-to-browser via PeerJS, protocol in `src/game/online.js`.
 - No restyling of existing screens. New UI reuses the variables and classes in
   `src/game.css`.
 - No new runtime dependencies unless clearly necessary; prefer small hand-written code.

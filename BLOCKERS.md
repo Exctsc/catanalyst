@@ -17,6 +17,11 @@ autonomous attempt had been refused by the permission classifier). Later commits
 3. Record the 60 to 90 second demo. (The README intro and `docs/screenshot.png` are done;
    the intro is written from Tony's own account and worth a read-through.)
 4. Get 5 to 10 competitive players to try it and collect quotes.
+5. **Online play needs the Netlify deploy** (step 2): friends can't reach `localhost` on your Mac.
+   Your Mac runs **Cloudflare WARP**, which blocks the direct browser-to-browser link completely;
+   turn WARP off while hosting or joining. If some friends' networks still block it, the fix is a
+   TURN relay (Cloudflare or Metered free tiers, both need an account you'd create) added to the
+   Peer options in `src/net/peer.js`.
 
 ## Worth a look (not blockers)
 
