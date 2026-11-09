@@ -99,6 +99,10 @@ export default function Home({ error, games = [], joinCode = '', onJoin, onResum
             <span className="g-dim">Games autosave in this browser. To move one to another browser or send it to someone, use Export in the game, then open the .json file here.</span>
             <FilePicker label="Open game file" accept=".json,application/json" onFile={async file => onImport(await file.text())} />
           </section>
+
+          <p className="g-home-footer">
+            Catanalyst is open source: <a href="https://github.com/Exctsc/catanalyst" target="_blank" rel="noreferrer">view the code on GitHub</a>.
+          </p>
         </div>
       </div>
     </div>

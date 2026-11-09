@@ -4,7 +4,7 @@
 > runtime dependency. `npm run dev` · `npm test` · `npm run build` · `npm run lint`.
 >
 > **State on 2026-11-08 (end of the finish run):** every item in `FINISH.md` Phases 0–3 is done.
-> Code lives in the private GitHub repo `Exctsc/catanalyst` (`main`); the app is live at
+> Code lives in the public GitHub repo `Exctsc/catanalyst` (`main`, linked from Home); the app is live at
 > https://catanalyst.netlify.app. `npm test`: 712 assertions, 0
 > failures across 34 suites. Build and lint are clean. The full product was verified end to end
 > in a real browser with drifting pointer clicks (see "Verification").

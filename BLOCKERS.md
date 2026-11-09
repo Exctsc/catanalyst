@@ -4,7 +4,7 @@ Nothing in `FINISH.md` is blocked any more. These are the things only you can do
 
 ## Done after the run: GitHub repo
 
-The private repo `Exctsc/catanalyst` was created and `main` pushed once you approved it (the
+The repo `Exctsc/catanalyst` (now public) was created and `main` pushed once you approved it (the
 autonomous attempt had been refused by the permission classifier). Later commits push with
 `git push`.
 
@@ -16,8 +16,9 @@ autonomous attempt had been refused by the permission classifier). Later commits
    team `exctsc`). Your team had visitor login
    protection on; it was turned off for this site at your request so anyone with the link can
    open it. Redeploy after changes with `npm run deploy`. Optional: link the GitHub repo in
-   Netlify (Project configuration → Build & deploy) for automatic deploys on push, and make the
-   repo public if you want the code visible. The free plan adds a "Powered by Netlify" badge in
+   Netlify (Project configuration → Build & deploy) for automatic deploys on push. The repo is
+   public (Home links to it); commit author emails are visible, so consider GitHub's noreply
+   commit email for future commits. The free plan adds a "Powered by Netlify" badge in
    the bottom-right corner; the app leaves that corner clear when the badge is present.
 3. Record the 60 to 90 second demo. (The README intro and `docs/screenshot.png` are done;
    the intro is written from Tony's own account and worth a read-through.)

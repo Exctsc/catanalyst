@@ -991,6 +991,9 @@ a.g-btn {
 .g-game-name { flex: 1 1 0; min-width: 0; }
 .g-game-buttons { flex-shrink: 0; }
 
+.g-home-footer { text-align: center; color: var(--g-text-dim); font-size: 15px; }
+.g-home-footer a { color: var(--g-accent); }
+
 /* ---------- Phones ---------- */
 /* Desktop never shows the phone-only controls. */
 .g-header-actions { display: flex; align-items: center; gap: 10px; }
